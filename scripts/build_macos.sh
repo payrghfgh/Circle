@@ -4,11 +4,11 @@
 #   ./scripts/build_macos.sh
 #
 # Needs Xcode command line tools (for codesign and hdiutil) and Python 3.10+.
-# Output: dist/Circle-1.1.0-<arch>.dmg
+# Output: dist/Circle-1.1.1-<arch>.dmg
 
 set -euo pipefail
 
-VERSION="1.1.0"
+VERSION="1.1.1"
 cd "$(dirname "$0")/.."
 
 ARCH="$(uname -m)"

@@ -54,18 +54,18 @@ jobs:
           codesign --force --deep --sign - dist/Circle.app
           codesign --verify --deep --strict --verbose=2 dist/Circle.app || true
           hdiutil create -volname "Circle" -srcfolder dist/Circle.app \
-            -ov -format UDZO "dist/Circle-1.1.0-${{ matrix.arch }}.dmg"
+            -ov -format UDZO "dist/Circle-1.1.1-${{ matrix.arch }}.dmg"
           ls -lh dist/*.dmg
 
       - name: Upload the dmg
         uses: actions/upload-artifact@v4
         with:
           name: Circle-macos-${{ matrix.arch }}
-          path: dist/Circle-1.1.0-${{ matrix.arch }}.dmg
+          path: dist/Circle-1.1.1-${{ matrix.arch }}.dmg
           if-no-files-found: error
 
       - name: Attach to the release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/Circle-1.1.0-${{ matrix.arch }}.dmg
+          files: dist/Circle-1.1.1-${{ matrix.arch }}.dmg

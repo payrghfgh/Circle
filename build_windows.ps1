@@ -3,7 +3,7 @@
 #   powershell -ExecutionPolicy Bypass -File .\build_windows.ps1
 #
 # Needs: Python 3.10+ (64-bit) and Inno Setup 6 (https://jrsoftware.org/isdl.php).
-# Output: installer\output\Circle-1.1.0-setup.exe
+# Output: installer\output\Circle-1.1.1-setup.exe
 
 param(
     [string]$Python = "python",

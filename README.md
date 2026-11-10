@@ -10,11 +10,11 @@ Runs on **Windows 10/11 (64-bit)** and **macOS 11+ (Apple Silicon and Intel)**.
 
 ## Install
 
-**Windows** — download `Circle-1.1.0-setup.exe` from [Releases](../../releases) and
+**Windows** — download `Circle-1.1.1-setup.exe` from [Releases](../../releases) and
 run it. Per-user install, no admin prompt, into `%LOCALAPPDATA%\Programs\Circle`.
 
-**macOS** — download `Circle-1.1.0-arm64.dmg` (Apple Silicon) or
-`Circle-1.1.0-x64.dmg` (Intel), open it, and drag Circle to Applications.
+**macOS** — download `Circle-1.1.1-arm64.dmg` (Apple Silicon) or
+`Circle-1.1.1-x64.dmg` (Intel), open it, and drag Circle to Applications.
 
 The macOS build is ad-hoc signed, not notarised, so the first launch needs one of:
 
@@ -105,12 +105,12 @@ Circle keeps its state in `%LOCALAPPDATA%\Circle\` on Windows and
 Both are built on real runners in CI — you do not need either OS to cut a release:
 
 ```bash
-git tag v1.1.0
-git push origin v1.1.0
+git tag v1.1.1
+git push origin v1.1.1
 ```
 
-`build-installer.yml` produces `Circle-1.1.0-setup.exe` on `windows-latest`;
-`build-macos.yml` produces `Circle-1.1.0-arm64.dmg` and `Circle-1.1.0-x64.dmg` on
+`build-installer.yml` produces `Circle-1.1.1-setup.exe` on `windows-latest`;
+`build-macos.yml` produces `Circle-1.1.1-arm64.dmg` and `Circle-1.1.1-x64.dmg` on
 `macos-14` and `macos-13`. All three attach to the release automatically.
 
 **Locally:**
