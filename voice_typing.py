@@ -3,6 +3,7 @@ import subprocess
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QApplication
 from PySide6.QtGui import QFont, QColor
+import theme
 from pynput.keyboard import Controller, Key
 
 keyboard_controller = Controller()
@@ -23,17 +24,17 @@ class VoiceTypingHUD(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        self.label = QLabel("🎙️ Voice Typing Active - Speak Now!")
+        self.label = QLabel("Listening — speak now")
         self.label.setAlignment(Qt.AlignCenter)
-        self.label.setFont(QFont("Segoe UI", 11, QFont.Bold))
-        self.label.setStyleSheet("""
-            QLabel {
-                background-color: #1E1E2E;
-                color: #A6E3A1;
-                border: 2px solid #A6E3A1;
-                border-radius: 20px;
-                padding: 10px 16px;
-            }
+        self.label.setFont(theme.font(12, QFont.DemiBold))
+        self.label.setStyleSheet(f"""
+            QLabel {{
+                background-color: rgba(16, 16, 20, 236);
+                color: {theme.TEXT};
+                border: 1px solid rgba(255, 255, 255, 40);
+                border-radius: 18px;
+                padding: 10px 18px;
+            }}
         """)
         layout.addWidget(self.label)
 

@@ -1,44 +1,54 @@
 import os
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QComboBox, QGroupBox, QFormLayout, QFileDialog, QTabWidget,
     QColorDialog, QMessageBox, QFrame, QScrollArea, QGridLayout, QSpinBox,
-    QCheckBox
+    QCheckBox, QSizePolicy
 )
 from PySide6.QtGui import QFont, QIcon, QColor, QPainter, QBrush, QPen
+import icons
+import theme
 from config import save_config, DEFAULT_CONFIG
 from action_executor import set_autostart, get_autostart
 
 PRESET_EMOJIS = ["🪟", "🚀", "🎙️", "🔊", "🔉", "🔇", "🌐", "📸", "📝", "⚙️", "📁", "🎮", "🎵", "💻", "⚡", "🔍", "🛑", "⭐", "⏯️", "⏭️", "⏮️", "🧮", "✂️", "🔒"]
-PRESET_COLORS = ["#89B4FA", "#A6E3A1", "#FAB387", "#F38BA8", "#CBA6F7", "#F9E2AF", "#74C7EC", "#94E2D5"]
+ICON_CHOICES = [
+    "search", "app", "file", "folder", "calc", "globe", "gear", "power",
+    "terminal", "window", "image", "music", "video", "code", "lock", "camera",
+    "bin", "star", "clock", "keyboard", "copy", "sheet", "text", "link",
+    "wifi", "display", "sound", "update", "mail", "store", "sleep", "user",
+    "privacy", "mouse", "battery", "bluetooth",
+]
+
+PRESET_COLORS = ["#8AB4FF", "#8BE0A4", "#FAB387", "#FF8095", "#CBA6F7", "#F9E2AF", "#74C7EC", "#94E2D5"]
 
 ACTION_PRESETS = [
-    {"name": "Window Switcher", "icon": "🪟", "type": "window_switcher", "detail": "", "color": "#CBA6F7"},
-    {"name": "Raycast App Search", "icon": "🚀", "type": "app_search", "detail": "", "color": "#89B4FA"},
-    {"name": "Voice-to-Text", "icon": "🎙️", "type": "voice_to_text", "detail": "", "color": "#A6E3A1"},
-    {"name": "Volume Up", "icon": "🔊", "type": "volume", "detail": "up", "color": "#89B4FA"},
-    {"name": "Volume Down", "icon": "🔉", "type": "volume", "detail": "down", "color": "#F38BA8"},
-    {"name": "Mute Audio", "icon": "🔇", "type": "volume", "detail": "mute", "color": "#F9E2AF"},
-    {"name": "Play / Pause", "icon": "⏯️", "type": "media", "detail": "playpause", "color": "#A6E3A1"},
-    {"name": "Next Track", "icon": "⏭️", "type": "media", "detail": "next", "color": "#74C7EC"},
-    {"name": "Prev Track", "icon": "⏮️", "type": "media", "detail": "prev", "color": "#74C7EC"},
-    {"name": "Screenshot", "icon": "📸", "type": "system", "detail": "screenshot", "color": "#FAB387"},
-    {"name": "Screen Snippet", "icon": "✂️", "type": "system", "detail": "snip", "color": "#FAB387"},
-    {"name": "Calculator", "icon": "🧮", "type": "system", "detail": "calc", "color": "#CBA6F7"},
-    {"name": "Notepad", "icon": "📝", "type": "system", "detail": "notepad", "color": "#CBA6F7"},
-    {"name": "File Explorer", "icon": "📁", "type": "system", "detail": "explorer", "color": "#F9E2AF"},
-    {"name": "Task Manager", "icon": "💻", "type": "system", "detail": "taskmgr", "color": "#89B4FA"},
-    {"name": "Windows Settings", "icon": "⚙️", "type": "system", "detail": "settings", "color": "#94E2D5"},
-    {"name": "Lock Screen", "icon": "🔒", "type": "system", "detail": "lock", "color": "#F38BA8"},
-    {"name": "Show Desktop", "icon": "🖥️", "type": "system", "detail": "show_desktop", "color": "#89B4FA"},
-    {"name": "Google", "icon": "🌐", "type": "open_url", "detail": "https://google.com", "color": "#A6E3A1"},
-    {"name": "YouTube", "icon": "🎥", "type": "open_url", "detail": "https://youtube.com", "color": "#F38BA8"},
-    {"name": "ChatGPT", "icon": "💬", "type": "open_url", "detail": "https://chatgpt.com", "color": "#94E2D5"},
-    {"name": "GitHub", "icon": "💻", "type": "open_url", "detail": "https://github.com", "color": "#CDD6F4"},
-    {"name": "Web Search", "icon": "🔍", "type": "web_search", "detail": "Python tutorial", "color": "#89B4FA"},
-    {"name": "Copy (Ctrl+C)", "icon": "📋", "type": "keyboard", "detail": "ctrl+c", "color": "#FAB387"},
-    {"name": "Paste (Ctrl+V)", "icon": "📌", "type": "keyboard", "detail": "ctrl+v", "color": "#A6E3A1"},
+    {"name": "Window Switcher", "icon_name": "window", "type": "window_switcher", "detail": "", "color": "#CBA6F7"},
+    {"name": "Search", "icon_name": "search", "type": "search", "detail": "", "color": "#8AB4FF"},
+    {"name": "Voice-to-Text", "icon_name": "sound", "type": "voice_to_text", "detail": "", "color": "#8BE0A4"},
+    {"name": "Volume Up", "icon_name": "sound", "type": "volume", "detail": "up", "color": "#8AB4FF"},
+    {"name": "Volume Down", "icon_name": "sound", "type": "volume", "detail": "down", "color": "#FF8095"},
+    {"name": "Mute Audio", "icon_name": "sound", "type": "volume", "detail": "mute", "color": "#F9E2AF"},
+    {"name": "Play / Pause", "icon_name": "music", "type": "media", "detail": "playpause", "color": "#8BE0A4"},
+    {"name": "Next Track", "icon_name": "music", "type": "media", "detail": "next", "color": "#74C7EC"},
+    {"name": "Prev Track", "icon_name": "music", "type": "media", "detail": "prev", "color": "#74C7EC"},
+    {"name": "Screenshot", "icon_name": "camera", "type": "system", "detail": "screenshot", "color": "#FAB387"},
+    {"name": "Screen Snippet", "icon_name": "camera", "type": "system", "detail": "snip", "color": "#FAB387"},
+    {"name": "Calculator", "icon_name": "calc", "type": "system", "detail": "calc", "color": "#CBA6F7"},
+    {"name": "Notepad", "icon_name": "text", "type": "system", "detail": "notepad", "color": "#CBA6F7"},
+    {"name": "File Explorer", "icon_name": "folder", "type": "system", "detail": "explorer", "color": "#F9E2AF"},
+    {"name": "Task Manager", "icon_name": "display", "type": "system", "detail": "taskmgr", "color": "#8AB4FF"},
+    {"name": "Windows Settings", "icon_name": "gear", "type": "system", "detail": "settings", "color": "#94E2D5"},
+    {"name": "Lock Screen", "icon_name": "lock", "type": "system", "detail": "lock", "color": "#FF8095"},
+    {"name": "Show Desktop", "icon_name": "window", "type": "system", "detail": "show_desktop", "color": "#8AB4FF"},
+    {"name": "Google", "icon_name": "globe", "type": "open_url", "detail": "https://google.com", "color": "#8BE0A4"},
+    {"name": "YouTube", "icon_name": "video", "type": "open_url", "detail": "https://youtube.com", "color": "#FF8095"},
+    {"name": "ChatGPT", "icon_name": "globe", "type": "open_url", "detail": "https://chatgpt.com", "color": "#94E2D5"},
+    {"name": "GitHub", "icon_name": "code", "type": "open_url", "detail": "https://github.com", "color": "#EDEDF2"},
+    {"name": "Web Search", "icon_name": "search", "type": "web_search", "detail": "Python tutorial", "color": "#8AB4FF"},
+    {"name": "Copy (Ctrl+C)", "icon_name": "copy", "type": "keyboard", "detail": "ctrl+c", "color": "#FAB387"},
+    {"name": "Paste (Ctrl+V)", "icon_name": "copy", "type": "keyboard", "detail": "ctrl+v", "color": "#8BE0A4"},
 ]
 
 class WheelPreviewWidget(QWidget):
@@ -82,16 +92,17 @@ class WheelPreviewWidget(QWidget):
             path.closeSubpath()
 
             is_sel = (i == self.selected_slot_index)
-            color_str = slot.get("color", "#89B4FA")
+            color_str = slot.get("color", theme.ACCENT)
             accent_color = QColor(color_str)
 
             if is_sel:
-                painter.setBrush(QBrush(accent_color))
-                painter.setPen(QPen(Qt.white, 2.5))
+                tint = QColor(accent_color)
+                tint.setAlpha(60)
+                painter.setBrush(QBrush(tint))
+                painter.setPen(QPen(accent_color, 1.6))
             else:
-                bg = QColor(30, 30, 46, 200)
-                painter.setBrush(QBrush(bg))
-                painter.setPen(QPen(QColor(255, 255, 255, 40), 1))
+                painter.setBrush(QBrush(QColor(22, 22, 28, 210)))
+                painter.setPen(QPen(QColor(255, 255, 255, 30), 1))
 
             painter.drawPath(path)
 
@@ -102,14 +113,23 @@ class WheelPreviewWidget(QWidget):
             lx = cx + lr * math.cos(mid_rad)
             ly = cy - lr * math.sin(mid_rad)
 
-            painter.setPen(Qt.white if is_sel else QColor(205, 214, 244))
-            font = QFont("Segoe UI Emoji", 10 if num_slots <= 8 else 8)
-            painter.setFont(font)
-            painter.drawText(int(lx - 15), int(ly - 12), 30, 24, Qt.AlignCenter, slot.get("icon", "★"))
+            icon_name = slot.get("icon_name", "")
+            icon_size = 16 if num_slots <= 8 else 13
+            if icon_name:
+                colour = theme.TEXT if is_sel else theme.TEXT_DIM
+                painter.drawPixmap(
+                    int(lx - icon_size / 2), int(ly - icon_size / 2),
+                    icons.pixmap(icon_name, icon_size, colour),
+                )
+            else:
+                painter.setPen(theme.TEXT if is_sel else theme.TEXT_DIM)
+                painter.setFont(theme.font(10 if num_slots <= 8 else 8))
+                painter.drawText(int(lx - 15), int(ly - 12), 30, 24,
+                                 Qt.AlignCenter, slot.get("icon", "•"))
 
         # Center hub
         painter.setBrush(QBrush(QColor(17, 17, 27)))
-        painter.setPen(QPen(QColor(137, 180, 250), 2))
+        painter.setPen(QPen(QColor(theme.ACCENT), 1.4))
         painter.drawEllipse(int(cx - inner_r), int(cy - inner_r), int(inner_r * 2), int(inner_r * 2))
 
         painter.setPen(Qt.white)
@@ -127,7 +147,7 @@ class SettingsWindow(QMainWindow):
         self.config_data = config_data.copy()
         self.slots_data = [dict(s) for s in self.config_data.get("slots", [])]
 
-        self.setWindowTitle("Circle - Wheel Menu Customizer")
+        self.setWindowTitle("Circle — Settings")
         self.resize(880, 640)
         self.setMinimumSize(800, 560)
 
@@ -135,113 +155,27 @@ class SettingsWindow(QMainWindow):
 
     def init_ui(self):
         main_widget = QWidget()
+        main_widget.setObjectName("root")
         self.setCentralWidget(main_widget)
         main_layout = QVBoxLayout(main_widget)
         main_layout.setContentsMargins(16, 16, 16, 16)
         main_layout.setSpacing(12)
 
-        self.setStyleSheet("""
-            QMainWindow, QWidget {
-                background-color: #1E1E2E;
-                color: #CDD6F4;
-                font-family: 'Segoe UI', sans-serif;
-            }
-            QGroupBox {
-                border: 1px solid #313244;
-                border-radius: 8px;
-                margin-top: 12px;
-                font-weight: bold;
-                padding-top: 12px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px;
-                color: #89B4FA;
-            }
-            QLineEdit, QComboBox, QSpinBox {
-                background-color: #181825;
-                border: 1px solid #45475A;
-                border-radius: 6px;
-                padding: 6px 10px;
-                color: #CDD6F4;
-                font-size: 13px;
-            }
-            QLineEdit:focus, QComboBox:focus {
-                border: 1px solid #89B4FA;
-            }
-            QCheckBox {
-                color: #CDD6F4;
-                font-size: 13px;
-                font-weight: bold;
-            }
-            QPushButton {
-                background-color: #313244;
-                border: 1px solid #45475A;
-                border-radius: 6px;
-                padding: 8px 14px;
-                color: #CDD6F4;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #45475A;
-                border: 1px solid #89B4FA;
-            }
-            QPushButton#presetBtn {
-                background-color: #181825;
-                border: 1px solid #313244;
-                text-align: left;
-                padding: 6px 10px;
-                font-size: 12px;
-            }
-            QPushButton#presetBtn:hover {
-                background-color: #313244;
-                border: 1px solid #89B4FA;
-            }
-            QPushButton#saveBtn {
-                background-color: #89B4FA;
-                color: #11111B;
-                border: none;
-            }
-            QPushButton#saveBtn:hover {
-                background-color: #B4BEFE;
-            }
-            QPushButton#testBtn {
-                background-color: #A6E3A1;
-                color: #11111B;
-                border: none;
-            }
-            QPushButton#testBtn:hover {
-                background-color: #94E2D5;
-            }
-            QTabWidget::pane {
-                border: 1px solid #313244;
-                border-radius: 8px;
-                background: #181825;
-            }
-            QTabBar::tab {
-                background: #1E1E2E;
-                color: #A6ADC8;
-                padding: 8px 16px;
-                border-top-left-radius: 6px;
-                border-top-right-radius: 6px;
-                margin-right: 4px;
-            }
-            QTabBar::tab:selected {
-                background: #313244;
-                color: #89B4FA;
-                font-weight: bold;
-            }
-        """)
+        self.setStyleSheet(theme.settings_qss())
 
         # Header Title
         header_layout = QHBoxLayout()
-        title_label = QLabel("⭕ Circle Wheel Customizer")
-        title_label.setFont(QFont("Segoe UI", 16, QFont.Bold))
+        title_label = QLabel("Circle")
+        title_label.setFont(theme.font(18, QFont.DemiBold, display=True))
         header_layout.addWidget(title_label)
+
+        subtitle_label = QLabel("wheel and search")
+        subtitle_label.setFont(theme.font(12))
+        subtitle_label.setStyleSheet(f"color: {theme.TEXT_MUTE};")
+        header_layout.addWidget(subtitle_label, 0, Qt.AlignBottom)
         header_layout.addStretch()
 
-        self.test_btn = QPushButton("⚡ Test Wheel")
+        self.test_btn = QPushButton("Test wheel")
         self.test_btn.setObjectName("testBtn")
         self.test_btn.clicked.connect(lambda: self.test_wheel_requested.emit())
         header_layout.addWidget(self.test_btn)
@@ -255,7 +189,7 @@ class SettingsWindow(QMainWindow):
         left_col.setSpacing(12)
 
         # Hotkey & Options Group
-        hotkey_box = QGroupBox("⌨️ Trigger Shortcut & Settings")
+        hotkey_box = QGroupBox("Shortcuts")
         hotkey_layout = QFormLayout(hotkey_box)
         hotkey_layout.setContentsMargins(10, 14, 10, 10)
 
@@ -275,27 +209,55 @@ class SettingsWindow(QMainWindow):
         preset_layout.addWidget(btn_mid_click)
         hotkey_layout.addRow("Presets:", preset_layout)
 
-        slot_ctrl_layout = QHBoxLayout()
         self.slot_count_spin = QSpinBox()
         self.slot_count_spin.setRange(3, 12)
         self.slot_count_spin.setValue(len(self.slots_data))
+        self.slot_count_spin.setFixedWidth(80)
         self.slot_count_spin.valueChanged.connect(self.on_slot_count_changed)
-        slot_ctrl_layout.addWidget(self.slot_count_spin)
+        count_row = QHBoxLayout()
+        count_row.addWidget(self.slot_count_spin)
+        count_row.addStretch()
+        hotkey_layout.addRow("Wheel slots:", count_row)
 
-        btn_add_slot = QPushButton("➕ Add Slot")
+        slot_ctrl_layout = QHBoxLayout()
+        btn_add_slot = QPushButton("Add slot")
         btn_add_slot.clicked.connect(self.add_slot)
-        btn_rem_slot = QPushButton("➖ Remove Slot")
+        btn_rem_slot = QPushButton("Remove slot")
         btn_rem_slot.clicked.connect(self.remove_slot)
         slot_ctrl_layout.addWidget(btn_add_slot)
         slot_ctrl_layout.addWidget(btn_rem_slot)
-        hotkey_layout.addRow("Wheel Slots:", slot_ctrl_layout)
+        slot_ctrl_layout.addStretch()
+        hotkey_layout.addRow("", slot_ctrl_layout)
 
-        self.autostart_checkbox = QCheckBox("🚀 Run automatically on Windows Startup")
+        self.search_hotkey_input = QLineEdit(
+            self.config_data.get("search_hotkey", "<alt>+<space>")
+        )
+        self.search_hotkey_input.setPlaceholderText("e.g. <alt>+<space>")
+        hotkey_layout.addRow("Search shortcut:", self.search_hotkey_input)
+
+        search_presets = QHBoxLayout()
+        for label, value in (("Alt+Space", "<alt>+<space>"),
+                             ("Ctrl+Space", "<ctrl>+<space>"),
+                             ("Ctrl+K", "<ctrl>+k")):
+            button = QPushButton(label)
+            button.clicked.connect(
+                lambda _checked=False, v=value: self.search_hotkey_input.setText(v)
+            )
+            search_presets.addWidget(button)
+        hotkey_layout.addRow("Search presets:", search_presets)
+
+        self.index_files_checkbox = QCheckBox("Index my files for Search")
+        self.index_files_checkbox.setChecked(
+            self.config_data.get("search", {}).get("index_files", True)
+        )
+        hotkey_layout.addRow("Search scope:", self.index_files_checkbox)
+
+        self.autostart_checkbox = QCheckBox("Start Circle with Windows")
         is_auto = self.config_data.get("autostart", True) or get_autostart()
         self.autostart_checkbox.setChecked(is_auto)
         hotkey_layout.addRow("Startup:", self.autostart_checkbox)
 
-        self.double_space_dot_checkbox = QCheckBox("⌨️ Double Spacebar produces period '.' (Mac style)")
+        self.double_space_dot_checkbox = QCheckBox("Double spacebar types a period")
         is_ds_dot = self.config_data.get("double_space_dot", False)
         self.double_space_dot_checkbox.setChecked(is_ds_dot)
         hotkey_layout.addRow("Mac Typing:", self.double_space_dot_checkbox)
@@ -303,7 +265,7 @@ class SettingsWindow(QMainWindow):
         left_col.addWidget(hotkey_box)
 
         # Quick Presets Gallery Box
-        preset_gallery_box = QGroupBox("💡 1-Click Action Presets Gallery")
+        preset_gallery_box = QGroupBox("Action presets")
         preset_gallery_layout = QVBoxLayout(preset_gallery_box)
 
         scroll = QScrollArea()
@@ -315,7 +277,8 @@ class SettingsWindow(QMainWindow):
         grid.setSpacing(6)
 
         for idx, item in enumerate(ACTION_PRESETS):
-            pbtn = QPushButton(f"{item['icon']} {item['name']}")
+            pbtn = QPushButton(item["name"])
+            pbtn.setIcon(QIcon(icons.pixmap(item["icon_name"], 16, theme.TEXT_DIM)))
             pbtn.setObjectName("presetBtn")
             pbtn.clicked.connect(lambda _, p=item: self.apply_action_preset(p))
             row = idx // 2
@@ -328,7 +291,7 @@ class SettingsWindow(QMainWindow):
         left_col.addWidget(preset_gallery_box)
 
         # Wheel Preview Box
-        preview_box = QGroupBox("🎡 Live Wheel Preview")
+        preview_box = QGroupBox("Wheel preview")
         preview_layout = QVBoxLayout(preview_box)
         preview_layout.setAlignment(Qt.AlignCenter)
 
@@ -338,11 +301,21 @@ class SettingsWindow(QMainWindow):
         left_col.addWidget(preview_box)
         left_col.addStretch()
 
-        content_layout.addLayout(left_col, 1)
+        left_scroll = QScrollArea()
+        left_scroll.setWidgetResizable(True)
+        left_scroll.setFrameShape(QFrame.NoFrame)
+        left_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        left_container = QWidget()
+        left_col.setContentsMargins(0, 0, 10, 0)
+        left_container.setLayout(left_col)
+        left_scroll.setWidget(left_container)
+        left_scroll.setMinimumWidth(430)
+        left_scroll.setMaximumWidth(470)
+        content_layout.addWidget(left_scroll)
 
         # Right Column: Dynamic Slots Customizer Tabs
         right_col = QVBoxLayout()
-        slots_group = QGroupBox("⚙️ Customize Active Wheel Slots")
+        slots_group = QGroupBox("Wheel slots")
         slots_layout = QVBoxLayout(slots_group)
 
         self.tabs = QTabWidget()
@@ -352,19 +325,19 @@ class SettingsWindow(QMainWindow):
         slots_layout.addWidget(self.tabs)
         right_col.addWidget(slots_group)
 
-        content_layout.addLayout(right_col, 2)
+        content_layout.addLayout(right_col, 1)
         main_layout.addLayout(content_layout)
 
         # Bottom Buttons
         bottom_layout = QHBoxLayout()
 
-        reset_btn = QPushButton("🔄 Reset Defaults")
+        reset_btn = QPushButton("Reset to defaults")
         reset_btn.clicked.connect(self.reset_to_defaults)
         bottom_layout.addWidget(reset_btn)
 
         bottom_layout.addStretch()
 
-        save_btn = QPushButton("💾 Save & Apply")
+        save_btn = QPushButton("Save changes")
         save_btn.setObjectName("saveBtn")
         save_btn.clicked.connect(self.save_settings)
         bottom_layout.addWidget(save_btn)
@@ -375,7 +348,8 @@ class SettingsWindow(QMainWindow):
         curr_idx = self.tabs.currentIndex()
         if 0 <= curr_idx < len(self.slots_data):
             self.slots_data[curr_idx]["name"] = preset_dict["name"]
-            self.slots_data[curr_idx]["icon"] = preset_dict["icon"]
+            self.slots_data[curr_idx]["icon"] = preset_dict.get("icon", "")
+            self.slots_data[curr_idx]["icon_name"] = preset_dict.get("icon_name", "")
             self.slots_data[curr_idx]["action_type"] = preset_dict["type"]
             self.slots_data[curr_idx]["action_detail"] = preset_dict["detail"]
             self.slots_data[curr_idx]["color"] = preset_dict["color"]
@@ -439,28 +413,43 @@ class SettingsWindow(QMainWindow):
         layout.addRow("Slot Name:", name_input)
 
         icon_layout = QHBoxLayout()
-        icon_input = QLineEdit(slot_data.get("icon", "★"))
-        icon_input.setFixedWidth(60)
-        icon_input.textChanged.connect(lambda t, idx=index: self.on_slot_field_changed(idx, "icon", t))
-        icon_layout.addWidget(icon_input)
+        icon_layout.setSpacing(4)
 
-        emoji_scroll = QScrollArea()
-        emoji_scroll.setFixedHeight(40)
-        emoji_scroll.setWidgetResizable(True)
-        emoji_container = QWidget()
-        emoji_lay = QHBoxLayout(emoji_container)
-        emoji_lay.setContentsMargins(0, 0, 0, 0)
-        emoji_lay.setSpacing(4)
+        icon_scroll = QScrollArea()
+        icon_scroll.setFixedHeight(148)
+        icon_scroll.setWidgetResizable(True)
+        icon_scroll.setFrameShape(QFrame.NoFrame)
+        icon_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        icon_container = QWidget()
+        icon_row = QGridLayout(icon_container)
+        icon_row.setContentsMargins(0, 0, 0, 0)
+        icon_row.setSpacing(4)
 
-        for emo in PRESET_EMOJIS:
-            ebtn = QPushButton(emo)
-            ebtn.setFixedSize(30, 30)
-            ebtn.clicked.connect(lambda _, e=emo, inp=icon_input: inp.setText(e))
-            emoji_lay.addWidget(ebtn)
+        current_icon = slot_data.get("icon_name", "")
+        icon_buttons = []
 
-        emoji_scroll.setWidget(emoji_container)
-        icon_layout.addWidget(emoji_scroll)
-        layout.addRow("Icon / Emoji:", icon_layout)
+        def choose_icon(name, idx=index):
+            for button in icon_buttons:
+                button.setChecked(button.property("iconName") == name)
+            self.on_slot_field_changed(idx, "icon_name", name)
+
+        for name in ICON_CHOICES:
+            button = QPushButton()
+            button.setCheckable(True)
+            button.setProperty("iconName", name)
+            button.setToolTip(name.replace("_", " ").title())
+            button.setIcon(QIcon(icons.pixmap(name, 16, theme.TEXT_DIM)))
+            button.setIconSize(QSize(16, 16))
+            button.setFixedSize(28, 28)
+            button.setChecked(name == current_icon)
+            button.clicked.connect(lambda _c=False, n=name: choose_icon(n))
+            position = len(icon_buttons)
+            icon_row.addWidget(button, position // 10, position % 10)
+            icon_buttons.append(button)
+        icon_scroll.setWidget(icon_container)
+        icon_layout.addWidget(icon_scroll)
+
+        layout.addRow("Icon:", icon_layout)
 
         color_layout = QHBoxLayout()
         color_btn = QPushButton()
@@ -494,7 +483,7 @@ class SettingsWindow(QMainWindow):
         type_combo = QComboBox()
         type_combo.addItems([
             "Window Switcher (Task View)",
-            "Raycast App Launcher (Search & Open)",
+            "Search (find anything)",
             "Voice-to-Text Dictation",
             "System Volume (Adjust/Mute)",
             "Media Control (Play/Next/Prev)",
@@ -508,6 +497,7 @@ class SettingsWindow(QMainWindow):
 
         type_map = {
             "window_switcher": 0,
+            "search": 1,
             "app_search": 1,
             "voice_to_text": 2,
             "volume": 3,
@@ -530,15 +520,15 @@ class SettingsWindow(QMainWindow):
         detail_layout.addWidget(browse_btn)
 
         def on_type_changed(idx_type, slot_idx=index):
-            inv_map = ["window_switcher", "app_search", "voice_to_text", "volume", "media", "open_app", "open_url", "keyboard", "system", "shell", "web_search"]
+            inv_map = ["window_switcher", "search", "voice_to_text", "volume", "media", "open_app", "open_url", "keyboard", "system", "shell", "web_search"]
             chosen_type = inv_map[idx_type]
             self.on_slot_field_changed(slot_idx, "action_type", chosen_type)
             browse_btn.setVisible(idx_type == 5)
 
             if chosen_type == "window_switcher":
                 detail_input.setPlaceholderText("Launches Window Switcher Task View")
-            elif chosen_type == "app_search":
-                detail_input.setPlaceholderText("Launches Raycast App Search Window")
+            elif chosen_type == "search":
+                detail_input.setPlaceholderText("Opens the Search panel")
             elif chosen_type == "voice_to_text":
                 detail_input.setPlaceholderText("Activates Voice Typing Dictation")
             elif chosen_type == "volume":
@@ -571,9 +561,13 @@ class SettingsWindow(QMainWindow):
         layout.addRow("Action Type:", type_combo)
         layout.addRow("Action Detail:", detail_layout)
 
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        layout.addRow(spacer)
+
         widget.name_input = name_input
-        widget.icon_input = icon_input
         widget.detail_input = detail_input
+        widget.choose_icon = choose_icon
 
         return widget
 
@@ -595,6 +589,8 @@ class SettingsWindow(QMainWindow):
             self.config_data = DEFAULT_CONFIG.copy()
             self.slots_data = [dict(s) for s in self.config_data.get("slots", [])]
             self.hotkey_input.setText(self.config_data.get("hotkey", "<ctrl>+<space>"))
+            self.search_hotkey_input.setText(self.config_data.get("search_hotkey", "<alt>+<space>"))
+            self.index_files_checkbox.setChecked(True)
             self.slot_count_spin.setValue(len(self.slots_data))
             self.autostart_checkbox.setChecked(True)
             self.double_space_dot_checkbox.setChecked(False)
@@ -603,6 +599,12 @@ class SettingsWindow(QMainWindow):
 
     def save_settings(self):
         self.config_data["hotkey"] = self.hotkey_input.text().strip()
+        self.config_data["search_hotkey"] = (
+            self.search_hotkey_input.text().strip() or "<alt>+<space>"
+        )
+        search_settings = dict(self.config_data.get("search") or {})
+        search_settings["index_files"] = self.index_files_checkbox.isChecked()
+        self.config_data["search"] = search_settings
         self.config_data["slots"] = self.slots_data
         is_auto = self.autostart_checkbox.isChecked()
         self.config_data["autostart"] = is_auto

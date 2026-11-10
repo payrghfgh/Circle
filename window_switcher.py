@@ -8,27 +8,36 @@ from PySide6.QtWidgets import (
     QApplication, QFrame, QHBoxLayout, QFileIconProvider
 )
 from PySide6.QtGui import QFont, QIcon, QPixmap, QColor
+import theme
 
-user32 = ctypes.windll.user32
-kernel32 = ctypes.windll.kernel32
+IS_WINDOWS = sys.platform == "win32"
 
-WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
-user32.EnumWindows.argtypes = [WNDENUMPROC, wintypes.LPARAM]
-user32.EnumWindows.restype = wintypes.BOOL
+# The Win32 handles only exist on Windows; everything below degrades to an
+# empty list elsewhere so the module still imports (tests, tooling).
+user32 = ctypes.windll.user32 if IS_WINDOWS else None
+kernel32 = ctypes.windll.kernel32 if IS_WINDOWS else None
 
-user32.IsWindowVisible.argtypes = [wintypes.HWND]
-user32.IsWindowVisible.restype = wintypes.BOOL
+WNDENUMPROC = (ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+               if IS_WINDOWS else None)
+if IS_WINDOWS:
+    user32.EnumWindows.argtypes = [WNDENUMPROC, wintypes.LPARAM]
+    user32.EnumWindows.restype = wintypes.BOOL
 
-user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
-user32.GetWindowTextLengthW.restype = ctypes.c_int
+    user32.IsWindowVisible.argtypes = [wintypes.HWND]
+    user32.IsWindowVisible.restype = wintypes.BOOL
 
-user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
-user32.GetWindowTextW.restype = ctypes.c_int
+    user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
+    user32.GetWindowTextLengthW.restype = ctypes.c_int
 
-user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
-user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+    user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+    user32.GetWindowTextW.restype = ctypes.c_int
+
+    user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+    user32.GetWindowThreadProcessId.restype = wintypes.DWORD
 
 def get_process_path(hwnd):
+    if not IS_WINDOWS:
+        return ""
     try:
         pid = wintypes.DWORD()
         user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
@@ -67,76 +76,43 @@ class WindowSwitcherWindow(QWidget):
         layout.setContentsMargins(12, 12, 12, 12)
 
         self.container = QFrame(self)
-        self.container.setStyleSheet("""
-            QFrame {
-                background-color: #1E1E2E;
-                border: 2px solid #CBA6F7;
-                border-radius: 14px;
-            }
-            QLineEdit {
-                background-color: #181825;
-                border: 1px solid #45475A;
-                border-radius: 10px;
-                padding: 12px 16px;
-                color: #CDD6F4;
-                font-size: 16px;
-                font-family: 'Segoe UI';
-            }
-            QLineEdit:focus {
-                border: 1.5px solid #CBA6F7;
-            }
-            QListWidget {
-                background-color: transparent;
-                border: none;
-                outline: none;
-                color: #CDD6F4;
-                font-size: 14px;
-                font-family: 'Segoe UI';
-            }
-            QListWidget::item {
-                padding: 10px 14px;
-                border-radius: 8px;
-                margin-bottom: 3px;
-            }
-            QListWidget::item:hover {
-                background-color: #313244;
-            }
-            QListWidget::item:selected {
-                background-color: #CBA6F7;
-                color: #11111B;
-                font-weight: bold;
-            }
-            QLabel {
-                color: #A6ADC8;
-                font-size: 11px;
-            }
-        """)
+        self.container.setObjectName("panel")
+        theme.panel_shadow(self.container, blur=64, y_offset=18, alpha=190)
+        self.container.setStyleSheet(theme.switcher_qss())
 
         container_layout = QVBoxLayout(self.container)
         container_layout.setContentsMargins(16, 16, 16, 16)
         container_layout.setSpacing(12)
 
         header_layout = QHBoxLayout()
-        title_label = QLabel("🪟 Windows Task View Switcher")
-        title_label.setFont(QFont("Segoe UI", 13, QFont.Bold))
-        title_label.setStyleSheet("color: #CBA6F7;")
+        title_label = QLabel("Switch windows")
+        title_label.setFont(theme.font(14, QFont.DemiBold, display=True))
         header_layout.addWidget(title_label)
 
-        self.status_label = QLabel("0 Windows Open")
-        header_layout.addWidget(self.status_label)
+        self.status_label = QLabel("0 open")
+        self.status_label.setFont(theme.font(11))
+        self.status_label.setStyleSheet(f"color: {theme.TEXT_DIM};")
+        header_layout.addWidget(self.status_label, 0, Qt.AlignBottom)
         header_layout.addStretch()
 
-        esc_hint = QLabel("Esc to close")
+        esc_hint = QLabel("esc to close")
+        esc_hint.setFont(theme.font(11))
+        esc_hint.setStyleSheet(f"color: {theme.TEXT_DIM};")
         header_layout.addWidget(esc_hint)
         container_layout.addLayout(header_layout)
 
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Filter open windows or press Enter to select... (e.g. Chrome, Code, Spotify)")
+        self.search_input.setObjectName("query")
+        self.search_input.setFont(theme.font(17, QFont.Normal, display=True))
+        self.search_input.setPlaceholderText("Filter open windows")
         self.search_input.textChanged.connect(self.on_search_changed)
         container_layout.addWidget(self.search_input)
 
         self.list_widget = QListWidget()
-        self.list_widget.setIconSize(QSize(28, 28))
+        self.list_widget.setObjectName("results")
+        self.list_widget.setIconSize(QSize(26, 26))
+        self.list_widget.setFocusPolicy(Qt.NoFocus)
+        self.list_widget.setVerticalScrollMode(QListWidget.ScrollPerPixel)
         self.list_widget.itemDoubleClicked.connect(self.switch_to_selected)
         container_layout.addWidget(self.list_widget)
 
@@ -145,6 +121,9 @@ class WindowSwitcherWindow(QWidget):
     def scan_open_windows(self):
         """Enumerates all currently open top-level application windows."""
         self.open_windows = []
+        if not IS_WINDOWS:
+            self.status_label.setText("Windows only")
+            return
         ignored_titles = [
             "Program Manager", "Settings", "Default IME", "MSCTFIME UI",
             "Windows Input Experience", "Task View", "Circle - Wheel Menu Customizer"
@@ -172,7 +151,7 @@ class WindowSwitcherWindow(QWidget):
             return True
 
         user32.EnumWindows(enum_cb, 0)
-        self.status_label.setText(f"{len(self.open_windows)} Open Windows")
+        self.status_label.setText(f"{len(self.open_windows)} open")
 
     def show_centered(self):
         self.scan_open_windows()
@@ -204,7 +183,7 @@ class WindowSwitcherWindow(QWidget):
         for win in self.open_windows:
             if not query or query in win["title"].lower():
                 icon = self.get_window_icon(win["proc_path"])
-                item = QListWidgetItem(f"🪟 {win['title']}")
+                item = QListWidgetItem(win["title"])
                 if not icon.isNull():
                     item.setIcon(icon)
                 item.setData(Qt.UserRole, win["hwnd"])
@@ -228,6 +207,8 @@ class WindowSwitcherWindow(QWidget):
                 self.list_widget.setCurrentRow(curr - 1)
 
     def switch_to_selected(self):
+        if not IS_WINDOWS:
+            return
         curr_item = self.list_widget.currentItem()
         if curr_item:
             hwnd = curr_item.data(Qt.UserRole)

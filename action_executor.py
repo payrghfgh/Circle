@@ -11,13 +11,13 @@ from pynput.keyboard import Controller, Key
 keyboard_controller = Controller()
 
 # Global window handles registered from main app
-_app_search_window = None
+_search_window = None
 _voice_typing_hud = None
 _window_switcher_window = None
 
-def register_special_windows(app_search_win, voice_hud, window_switcher_win=None):
-    global _app_search_window, _voice_typing_hud, _window_switcher_window
-    _app_search_window = app_search_win
+def register_special_windows(search_win, voice_hud, window_switcher_win=None):
+    global _search_window, _voice_typing_hud, _window_switcher_window
+    _search_window = search_win
     _voice_typing_hud = voice_hud
     _window_switcher_window = window_switcher_win
 
@@ -151,9 +151,9 @@ def execute_slot_action(slot_data):
             if _window_switcher_window:
                 _window_switcher_window.show_centered()
 
-        elif action_type == "app_search":
-            if _app_search_window:
-                _app_search_window.show_centered()
+        elif action_type in ("search", "app_search"):
+            if _search_window:
+                _search_window.show_centered()
 
         elif action_type == "voice_to_text":
             if _voice_typing_hud:

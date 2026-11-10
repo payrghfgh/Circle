@@ -1,22 +1,30 @@
 {
-    "hotkey": "<ctrl>+<.>",
+    "hotkey": "<ctrl>+<space>",
+    "search_hotkey": "<alt>+<space>",
     "trigger_mode": "toggle",
+    "search": {
+        "index_files": true,
+        "max_results": 5,
+        "web_engine": "https://www.google.com/search?q={q}",
+        "extra_index_roots": []
+    },
     "theme": {
-        "bg_color": "#1E1E2E",
-        "accent_color": "#89B4FA",
-        "hover_color": "#313244",
-        "text_color": "#CDD6F4",
+        "bg_color": "#101014",
+        "accent_color": "#8AB4FF",
+        "hover_color": "#20202A",
+        "text_color": "#EDEDF2",
         "radius": 140,
         "inner_radius": 45
     },
     "slots": [
         {
             "id": 1,
-            "name": "Volume Up",
-            "icon": "🔊",
-            "action_type": "volume",
-            "action_detail": "up",
-            "color": "#89B4FA"
+            "name": "Search",
+            "icon": "🔍",
+            "action_type": "search",
+            "action_detail": "",
+            "color": "#8AB4FF",
+            "icon_name": "search"
         },
         {
             "id": 2,
@@ -24,7 +32,8 @@
             "icon": "🖥",
             "action_type": "keyboard",
             "action_detail": "ctrl+shift+esc",
-            "color": "#A6E3A1"
+            "color": "#8BE0A4",
+            "icon_name": "display"
         },
         {
             "id": 3,
@@ -32,7 +41,8 @@
             "icon": "✂️",
             "action_type": "system",
             "action_detail": "snip",
-            "color": "#FAB387"
+            "color": "#FAB387",
+            "icon_name": "camera"
         },
         {
             "id": 4,
@@ -40,15 +50,17 @@
             "icon": "💾",
             "action_type": "keyboard",
             "action_detail": "win+e",
-            "color": "#F9E2AF"
+            "color": "#F9E2AF",
+            "icon_name": "folder"
         },
         {
             "id": 5,
-            "name": "Raycast App Search",
-            "icon": "🚀",
-            "action_type": "app_search",
+            "name": "Switch Windows",
+            "icon": "🪟",
+            "action_type": "window_switcher",
             "action_detail": "",
-            "color": "#89B4FA"
+            "color": "#CBA6F7",
+            "icon_name": "window"
         },
         {
             "id": 6,
@@ -56,15 +68,17 @@
             "icon": "🎙️",
             "action_type": "voice_to_text",
             "action_detail": "",
-            "color": "#A6E3A1"
+            "color": "#8BE0A4",
+            "icon_name": "sound"
         },
         {
             "id": 7,
-            "name": "Window Switcher",
-            "icon": "🪟",
-            "action_type": "window_switcher",
-            "action_detail": "",
-            "color": "#CBA6F7"
+            "name": "Volume Up",
+            "icon": "🔊",
+            "action_type": "volume",
+            "action_detail": "up",
+            "color": "#74C7EC",
+            "icon_name": "sound"
         },
         {
             "id": 8,
@@ -72,7 +86,8 @@
             "icon": "🔉",
             "action_type": "volume",
             "action_detail": "down",
-            "color": "#F38BA8"
+            "color": "#FF8095",
+            "icon_name": "sound"
         }
     ],
     "autostart": true,

@@ -4,6 +4,8 @@ from PySide6.QtWidgets import QWidget, QApplication
 from PySide6.QtGui import (
     QPainter, QColor, QPen, QBrush, QPainterPath, QFont, QCursor, QRegion, QIcon
 )
+import icons
+import theme
 from action_executor import execute_slot_action, set_system_volume_change, get_system_volume, set_system_volume_percent
 
 class WheelOverlay(QWidget):
@@ -181,7 +183,6 @@ class WheelOverlay(QWidget):
             self.outer_radius * 2,
             self.outer_radius * 2
         )
-
         rect_inner = QRectF(
             self.center_pt.x() - self.inner_radius,
             self.center_pt.y() - self.inner_radius,
@@ -189,9 +190,9 @@ class WheelOverlay(QWidget):
             self.inner_radius * 2
         )
 
-        bg_dark = QColor(24, 24, 37, 220)
-        border_pen = QPen(QColor(255, 255, 255, 40), 1.5)
-        active_border_pen = QPen(QColor(137, 180, 250, 255), 2.5)
+        slot_fill = QColor(22, 22, 28, 216)
+        hairline = QPen(QColor(255, 255, 255, 30), 1.0)
+        hairline.setCosmetic(True)
 
         for i, slot in enumerate(self.slots):
             start_deg = 90 - (i * span_angle)
@@ -204,124 +205,114 @@ class WheelOverlay(QWidget):
             path.closeSubpath()
 
             is_hovered = (i == self.hovered_slot_index)
-            slot_color_str = slot.get("color", "#89B4FA")
-            slot_accent = QColor(slot_color_str)
+            accent = QColor(slot.get("color", theme.ACCENT))
 
             if is_hovered:
-                fill_color = QColor(slot_accent.red(), slot_accent.green(), slot_accent.blue(), 185)
-                painter.setBrush(QBrush(fill_color))
-                painter.setPen(active_border_pen)
+                tint = QColor(accent)
+                tint.setAlpha(48)
+                painter.setBrush(QBrush(tint))
+                pen = QPen(accent, 1.5)
+                painter.setPen(pen)
             else:
-                painter.setBrush(QBrush(bg_dark))
-                painter.setPen(border_pen)
+                painter.setBrush(QBrush(slot_fill))
+                painter.setPen(hairline)
 
             painter.drawPath(path)
 
             mid_deg = (start_deg + end_deg) / 2.0
             mid_rad = math.radians(mid_deg)
             label_radius = (self.inner_radius + self.outer_radius) / 2.0
-            
+
             lx = self.center_pt.x() + label_radius * math.cos(mid_rad)
             ly = self.center_pt.y() - label_radius * math.sin(mid_rad)
 
-            icon_str = slot.get("icon", "★")
-            name_str = slot.get("name", f"Slot {i+1}")
+            icon_name = slot.get("icon_name", "")
+            if icon_name:
+                colour = theme.TEXT if is_hovered else theme.TEXT_DIM
+                glyph = icons.pixmap(icon_name, 20, colour)
+                painter.drawPixmap(
+                    QRectF(lx - 10, ly - 26, 20, 20), glyph,
+                    QRectF(0, 0, glyph.width(), glyph.height()),
+                )
+            else:
+                painter.setPen(QColor(theme.TEXT) if is_hovered else QColor(theme.TEXT_DIM))
+                painter.setFont(QFont("Segoe UI Emoji", 15))
+                painter.drawText(QRectF(lx - 40, ly - 24, 80, 26), Qt.AlignCenter,
+                                 slot.get("icon", "•"))
 
-            painter.setPen(QColor(255, 255, 255) if is_hovered else QColor(205, 214, 244))
+            painter.setPen(QColor(theme.TEXT) if is_hovered else QColor(theme.TEXT_DIM))
+            painter.setFont(theme.font(9, QFont.DemiBold))
+            painter.drawText(QRectF(lx - 58, ly + 4, 116, 18), Qt.AlignCenter,
+                             slot.get("name", f"Slot {i + 1}"))
 
-            font_icon = QFont("Segoe UI Emoji", 16, QFont.Bold)
-            painter.setFont(font_icon)
-            painter.drawText(
-                QRectF(lx - 40, ly - 22, 80, 24),
-                Qt.AlignCenter,
-                icon_str
-            )
-
-            font_text = QFont("Segoe UI", 8, QFont.DemiBold)
-            painter.setFont(font_text)
-            painter.drawText(
-                QRectF(lx - 55, ly + 4, 110, 20),
-                Qt.AlignCenter,
-                name_str
-            )
-
-        # Center Hub
-        center_path = QPainterPath()
-        center_path.addEllipse(rect_inner)
+        # ---- centre hub ----
+        centre_path = QPainterPath()
+        centre_path.addEllipse(rect_inner)
 
         if self.center_hovered:
-            painter.setBrush(QBrush(QColor(49, 50, 68, 240)))
-            painter.setPen(QPen(QColor(243, 139, 168, 200), 2))
+            painter.setBrush(QBrush(QColor(30, 30, 38, 242)))
+            ring = QPen(QColor(theme.DANGER), 1.4)
         else:
-            painter.setBrush(QBrush(QColor(30, 30, 46, 230)))
-            painter.setPen(border_pen)
-
-        painter.drawPath(center_path)
+            painter.setBrush(QBrush(QColor(16, 16, 20, 236)))
+            ring = hairline
+        painter.setPen(ring)
+        painter.drawPath(centre_path)
 
         if self.show_volume_bar:
-            center_title = f"{self.current_volume}%"
-            center_sub = "VOLUME"
-            color = QColor("#A6E3A1")
-        elif self.hovered_slot_index != -1 and self.hovered_slot_index < len(self.slots):
-            curr_slot = self.slots[self.hovered_slot_index]
-            center_title = curr_slot.get("name", "")
-            center_sub = curr_slot.get("action_type", "").upper()
-            color = QColor(curr_slot.get("color", "#89B4FA"))
+            centre_title = f"{self.current_volume}%"
+            centre_sub = "VOLUME"
+            colour = QColor(theme.OK)
+        elif 0 <= self.hovered_slot_index < len(self.slots):
+            current = self.slots[self.hovered_slot_index]
+            centre_title = current.get("name", "")
+            centre_sub = current.get("action_type", "").upper()
+            colour = QColor(current.get("color", theme.ACCENT))
         elif self.center_hovered:
-            center_title = "Cancel"
-            center_sub = "Click to close"
-            color = QColor("#F38BA8")
+            centre_title = "Close"
+            centre_sub = "CLICK"
+            colour = QColor(theme.DANGER)
         else:
-            center_title = "CIRCLE"
-            center_sub = f"{num_slots} Slots"
-            color = QColor("#89B4FA")
+            centre_title = "Circle"
+            centre_sub = f"{num_slots} SLOTS"
+            colour = QColor(theme.ACCENT)
 
-        painter.setPen(color)
-        font_c1 = QFont("Segoe UI", 10, QFont.Bold)
-        painter.setFont(font_c1)
+        painter.setPen(colour)
+        painter.setFont(theme.font(11, QFont.DemiBold))
         painter.drawText(
-            QRectF(self.center_pt.x() - 40, self.center_pt.y() - 14, 80, 18),
-            Qt.AlignCenter,
-            center_title
+            QRectF(self.center_pt.x() - 44, self.center_pt.y() - 15, 88, 18),
+            Qt.AlignCenter, centre_title
         )
 
-        painter.setPen(QColor(166, 173, 200))
-        font_c2 = QFont("Segoe UI", 7, QFont.Normal)
-        painter.setFont(font_c2)
+        painter.setPen(QColor(theme.TEXT_MUTE))
+        painter.setFont(theme.font(7, QFont.DemiBold, tracking=0.8))
         painter.drawText(
-            QRectF(self.center_pt.x() - 40, self.center_pt.y() + 4, 80, 14),
-            Qt.AlignCenter,
-            center_sub
+            QRectF(self.center_pt.x() - 44, self.center_pt.y() + 3, 88, 14),
+            Qt.AlignCenter, centre_sub
         )
 
-        # Volume Bar HUD
+        # ---- volume HUD ----
         if self.show_volume_bar:
             bar_w = self.outer_radius * 2
-            bar_h = 24
+            bar_h = 22
             bar_x = self.center_pt.x() - (bar_w / 2)
-            bar_y = self.center_pt.y() - self.outer_radius - 36
+            bar_y = self.center_pt.y() - self.outer_radius - 34
 
             bar_rect = QRectF(bar_x, bar_y, bar_w, bar_h)
             bg_path = QPainterPath()
-            bg_path.addRoundedRect(bar_rect, 12, 12)
-            painter.setBrush(QBrush(QColor(17, 17, 27, 230)))
-            painter.setPen(QPen(QColor(137, 180, 250), 1.5))
+            bg_path.addRoundedRect(bar_rect, 11, 11)
+            painter.setBrush(QBrush(QColor(16, 16, 20, 238)))
+            painter.setPen(hairline)
             painter.drawPath(bg_path)
 
             fill_w = max(0.0, (self.current_volume / 100.0) * bar_w)
-            if fill_w > 0:
+            if fill_w > 2:
                 fill_rect = QRectF(bar_x, bar_y, fill_w, bar_h)
                 fill_path = QPainterPath()
-                fill_path.addRoundedRect(fill_rect, 12, 12)
-                painter.setBrush(QBrush(QColor(166, 227, 161, 220)))
+                fill_path.addRoundedRect(fill_rect, 11, 11)
+                painter.setBrush(QBrush(QColor(138, 180, 255, 120)))
                 painter.setPen(Qt.NoPen)
                 painter.drawPath(fill_path)
 
-            vol_icon = "🔊" if self.current_volume > 50 else ("🔉" if self.current_volume > 0 else "🔇")
-            painter.setPen(QColor(255, 255, 255))
-            painter.setFont(QFont("Segoe UI", 9, QFont.Bold))
-            painter.drawText(
-                bar_rect,
-                Qt.AlignCenter,
-                f"{vol_icon} Volume: {self.current_volume}%  (Holding +/- 2%)"
-            )
+            painter.setPen(QColor(theme.TEXT))
+            painter.setFont(theme.font(10, QFont.DemiBold))
+            painter.drawText(bar_rect, Qt.AlignCenter, f"{self.current_volume}%")
