@@ -4,9 +4,16 @@ import subprocess
 import webbrowser
 import ctypes
 import time
-import winreg
-from PIL import ImageGrab
+
+import platform_layer as platform
 from pynput.keyboard import Controller, Key
+
+if sys.platform == "win32":
+    import winreg
+    from PIL import ImageGrab
+else:
+    winreg = None
+    ImageGrab = None
 
 keyboard_controller = Controller()
 
@@ -55,6 +62,8 @@ def _get_volume_object():
     return None
 
 def get_system_volume():
+    if platform.IS_MACOS:
+        return platform.get_volume()
     vol_obj = _get_volume_object()
     if vol_obj:
         try:
@@ -65,6 +74,8 @@ def get_system_volume():
     return 50
 
 def set_system_volume_percent(percent):
+    if platform.IS_MACOS:
+        return platform.set_volume(percent)
     target_pct = max(0, min(100, int(round(percent))))
     vol_obj = _get_volume_object()
     if vol_obj:
@@ -108,6 +119,8 @@ REG_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 APP_NAME = "CircleWheelMenu"
 
 def set_autostart(enable=True):
+    if not platform.IS_WINDOWS:
+        return platform.set_autostart(enable)
     try:
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_PATH, 0, winreg.KEY_ALL_ACCESS)
         if enable:
@@ -129,6 +142,8 @@ def set_autostart(enable=True):
         return False
 
 def get_autostart():
+    if not platform.IS_WINDOWS:
+        return platform.get_autostart()
     try:
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_PATH, 0, winreg.KEY_READ)
         try:
@@ -141,12 +156,75 @@ def get_autostart():
     except Exception:
         return False
 
+
+def _execute_macos(action_type, detail):
+    """Handle the actions whose implementation is OS-specific.
+
+    Returns True when the action was dealt with here, False to let the
+    cross-platform code below run (URLs, shortcuts, shell, web search).
+    """
+    if action_type == "volume":
+        if detail == "up":
+            platform.change_volume(2)
+        elif detail == "down":
+            platform.change_volume(-2)
+        elif detail == "mute":
+            platform.toggle_mute()
+        return True
+
+    if action_type == "media":
+        platform.media_control(detail)
+        return True
+
+    if action_type == "open_app":
+        if detail:
+            target = os.path.expanduser(detail)
+            if os.path.exists(target):
+                platform.open_path(target)
+            else:
+                subprocess.Popen(detail, shell=True)
+        return True
+
+    if action_type == "system":
+        if detail == "screenshot":
+            platform.screenshot()
+        elif detail == "snip":
+            platform.snip()
+        elif detail == "lock":
+            platform.lock_screen()
+        elif detail == "taskmgr":
+            platform.open_task_manager()
+        elif detail == "calc":
+            platform.open_path("/System/Applications/Calculator.app")
+        elif detail == "notepad":
+            platform.open_path("/System/Applications/TextEdit.app")
+        elif detail == "explorer":
+            platform.open_path(os.path.expanduser("~"))
+        elif detail == "settings":
+            platform.open_settings()
+        elif detail == "show_desktop":
+            platform.show_desktop()
+        return True
+
+    if action_type == "voice_to_text":
+        if _voice_typing_hud:
+            _voice_typing_hud.trigger_voice_dictation()
+        else:
+            platform.trigger_dictation()
+        return True
+
+    return False
+
+
 def execute_slot_action(slot_data):
     """Execute action based on slot settings."""
     action_type = slot_data.get("action_type", "")
     detail = slot_data.get("action_detail", "").strip()
 
     try:
+        if not platform.IS_WINDOWS and _execute_macos(action_type, detail):
+            return
+
         if action_type == "window_switcher":
             if _window_switcher_window:
                 _window_switcher_window.show_centered()

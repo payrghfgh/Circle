@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 import icons
+import platform_layer as platform
 import theme
 from search_providers import Result, SearchEngine
 
@@ -27,6 +28,15 @@ ROW_HEIGHT = 46
 HEADER_HEIGHT = 30
 PANEL_WIDTH = 720
 MAX_LIST_HEIGHT = 462
+
+
+def _activate_app():
+    """A Qt.Tool window cannot become key on macOS until the app is frontmost."""
+    try:
+        from AppKit import NSApp
+        NSApp.activateIgnoringOtherApps_(True)
+    except Exception:
+        pass
 
 
 class ResultDelegate(QStyledItemDelegate):
@@ -321,6 +331,8 @@ class SearchWindow(QWidget):
         self.show()
         self.raise_()
         self.activateWindow()
+        if platform.IS_MACOS:
+            _activate_app()
         self.input.setFocus(Qt.ShortcutFocusReason)
 
     def dismiss(self):

@@ -11,6 +11,11 @@ build/
 dist/
 installer/output/
 
+# macOS
+*.dmg
+*.app/
+.DS_Store
+
 # User state
 config.local.json
 *.log
@@ -18,5 +23,4 @@ config.local.json
 # Editors / OS
 .vscode/
 .idea/
-.DS_Store
 Thumbs.db

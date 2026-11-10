@@ -29,12 +29,13 @@ Every text colour used for reading clears 4.5:1 against the panel. Placeholders 
 
 ## Type
 
-Windows-native, because this is a Windows utility and the system face is what the
-rest of the desktop is wearing.
+System-native on both platforms, because a launcher should look like the desktop
+it interrupts. The stacks resolve at runtime to whatever the machine actually has.
 
-- UI: `Segoe UI Variable Text` → `Segoe UI` → `Inter`
-- Display (query field): `Segoe UI Variable Display`
-- Mono: `Cascadia Mono` → `Consolas`
+- UI: `Segoe UI Variable Text` → `Segoe UI` → `SF Pro Text` → `Helvetica Neue` → `Inter`
+- Display (query field): `Segoe UI Variable Display` → `SF Pro Display`
+- Mono: `Cascadia Mono` → `Consolas` → `SF Mono` → `Menlo`
+- Emoji (legacy wheel slots only): `Segoe UI Emoji` → `Apple Color Emoji`
 
 | Role | Size | Weight |
 | --- | --- | --- |
@@ -72,6 +73,14 @@ file icons come from Windows itself (`QFileIconProvider`) and are drawn in the s
 
 Wheel slots choose from the same set; a slot with no icon name falls back to a
 single character, so older configs still render.
+
+## Platform
+
+One design, two operating systems. The palette, type scale, spacing and icon set
+are identical; only the system-facing copy changes — "System Settings" instead of
+"Windows Settings", "Empty the Trash" instead of "Empty the Recycle Bin", Option
+instead of Alt. Nothing is re-themed per platform, because a launcher that looks
+different on each machine stops being one product.
 
 ## Copy
 

@@ -8,13 +8,19 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 IS_WINDOWS = sys.platform == "win32"
+IS_MACOS = sys.platform == "darwin"
 FROZEN = bool(getattr(sys, "frozen", False))
 
 DEFAULT_WEB_ENGINE = "https://www.google.com/search?q={q}"
 
+# Ctrl+Space is taken by input-source switching on macOS, and Cmd+Space by
+# Spotlight, so the wheel defaults to Ctrl+Option+Space there.
+DEFAULT_WHEEL_HOTKEY = "<ctrl>+<alt>+<space>" if IS_MACOS else "<ctrl>+<space>"
+DEFAULT_SEARCH_HOTKEY = "<alt>+<space>"
+
 DEFAULT_CONFIG = {
-    "hotkey": "<ctrl>+<space>",
-    "search_hotkey": "<alt>+<space>",
+    "hotkey": DEFAULT_WHEEL_HOTKEY,
+    "search_hotkey": DEFAULT_SEARCH_HOTKEY,
     "autostart": True,
     "double_space_dot": False,
     "trigger_mode": "toggle",
@@ -58,6 +64,8 @@ def data_dir():
     """Where Circle keeps its own caches and usage history."""
     if IS_WINDOWS:
         base = os.environ.get("LOCALAPPDATA") or BASE_DIR
+    elif IS_MACOS:
+        base = os.path.join(os.path.expanduser("~"), "Library", "Application Support")
     else:
         base = os.environ.get("XDG_CACHE_HOME") or os.path.join(
             os.path.expanduser("~"), ".cache"

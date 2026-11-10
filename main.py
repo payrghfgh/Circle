@@ -4,6 +4,7 @@ from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
+import platform_layer as platform
 import theme
 from action_executor import register_special_windows, set_autostart
 from config import load_config, save_config
@@ -22,18 +23,27 @@ def create_tray_icon():
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.Antialiasing)
 
-    painter.setPen(QColor(theme.TEXT))
+    # macOS menu-bar icons are template images: drawn in black and inverted by
+    # the system, so they stay legible in both light and dark menu bars.
+    ink = QColor(0, 0, 0) if platform.IS_MACOS else QColor(theme.TEXT)
+    core = QColor(0, 0, 0) if platform.IS_MACOS else QColor(theme.ACCENT)
+
     pen = painter.pen()
+    pen.setColor(ink)
     pen.setWidthF(3.0)
     painter.setPen(pen)
     painter.setBrush(Qt.NoBrush)
     painter.drawEllipse(8, 8, 48, 48)
 
     painter.setPen(Qt.NoPen)
-    painter.setBrush(QColor(theme.ACCENT))
+    painter.setBrush(core)
     painter.drawEllipse(24, 24, 16, 16)
     painter.end()
-    return QIcon(pixmap)
+
+    icon = QIcon(pixmap)
+    if platform.IS_MACOS:
+        icon.setIsMask(True)
+    return icon
 
 
 class CircleApp(QObject):
@@ -70,13 +80,15 @@ class CircleApp(QObject):
         self._build_tray()
         self.hotkey_manager.start()
 
-        self.tray_icon.showMessage(
-            "Circle is running",
+        message = (
             f"Press {self._pretty(self.config_data.get('search_hotkey', '<alt>+<space>'))} "
-            "to search, or the tray icon for the wheel.",
-            QSystemTrayIcon.Information,
-            3500,
+            "to search, or the tray icon for the wheel."
         )
+        if platform.IS_MACOS:
+            message += ("  If the shortcut does nothing, allow Circle under "
+                        "System Settings → Privacy & Security → Accessibility.")
+        self.tray_icon.showMessage("Circle is running", message,
+                                   QSystemTrayIcon.Information, 6000)
 
     # ----------------------------------------------------------------- tray --
 
@@ -153,6 +165,12 @@ class CircleApp(QObject):
             self.settings_window.double_space_dot_checkbox.setChecked(checked)
 
     def on_tray_icon_activated(self, reason):
+        # On macOS a single click already opens the menu bar menu, so only a
+        # double click should summon the panel. Windows has no such menu.
+        if platform.IS_MACOS:
+            if reason == QSystemTrayIcon.DoubleClicked:
+                self.show_search()
+            return
         if reason in (QSystemTrayIcon.DoubleClicked, QSystemTrayIcon.Trigger):
             self.show_search()
 

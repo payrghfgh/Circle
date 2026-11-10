@@ -236,7 +236,7 @@ class WheelOverlay(QWidget):
                 )
             else:
                 painter.setPen(QColor(theme.TEXT) if is_hovered else QColor(theme.TEXT_DIM))
-                painter.setFont(QFont("Segoe UI Emoji", 15))
+                painter.setFont(theme.emoji_font(15))
                 painter.drawText(QRectF(lx - 40, ly - 24, 80, 26), Qt.AlignCenter,
                                  slot.get("icon", "•"))
 

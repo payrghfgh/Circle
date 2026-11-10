@@ -27,10 +27,12 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QFileIconProvider
 
 import config
+import platform_layer as platform
 
-IS_WINDOWS = sys.platform == "win32"
+IS_WINDOWS = platform.IS_WINDOWS
+IS_MACOS = platform.IS_MACOS
 
-CREATE_NO_WINDOW = 0x08000000 if IS_WINDOWS else 0
+CREATE_NO_WINDOW = platform.CREATE_NO_WINDOW
 
 
 # ------------------------------------------------------------------ model ---
@@ -67,33 +69,9 @@ def _spawn(args, shell=False):
         print(f"[circle] failed to run {args!r}: {exc}")
 
 
-def open_path(path: str):
-    if IS_WINDOWS:
-        try:
-            os.startfile(path)  # noqa: S606 - intentional shell open
-        except Exception as exc:
-            print(f"[circle] cannot open {path}: {exc}")
-    else:
-        _spawn(["xdg-open", path])
-
-
-def reveal_path(path: str):
-    """Show the file in its folder rather than opening it."""
-    if IS_WINDOWS:
-        if os.path.isdir(path):
-            _spawn(["explorer.exe", path])
-        else:
-            _spawn(["explorer.exe", "/select,", os.path.normpath(path)])
-    else:
-        _spawn(["xdg-open", os.path.dirname(path) or "."])
-
-
-def open_url(url: str):
-    import webbrowser
-    try:
-        webbrowser.open(url)
-    except Exception as exc:
-        print(f"[circle] cannot open url {url}: {exc}")
+open_path = platform.open_path
+reveal_path = platform.reveal_path
+open_url = platform.open_url
 
 
 def score_text(query: str, text: str) -> float:
@@ -192,6 +170,8 @@ class AppIndex:
                 self._scan_shortcuts(directory, apps)
             for entry in self._store_apps():
                 apps.setdefault(entry["name"].lower(), entry)
+        elif IS_MACOS:
+            self._scan_app_bundles(apps)
         else:
             self._scan_desktop_files(apps)
 
@@ -275,6 +255,64 @@ class AppIndex:
             print(f"[circle] store app index skipped: {exc}")
         return entries
 
+    _MAC_APP_DIRS = [
+        "/Applications",
+        "/System/Applications",
+        "/System/Applications/Utilities",
+        "/Applications/Utilities",
+        os.path.expanduser("~/Applications"),
+    ]
+
+    def _scan_app_bundles(self, apps: Dict[str, dict]):
+        """A .app bundle is the app: name from the bundle, icon from its icns."""
+        for root in self._MAC_APP_DIRS:
+            if not os.path.isdir(root):
+                continue
+            try:
+                entries = sorted(os.listdir(root))
+            except OSError:
+                continue
+            for name in entries:
+                if not name.endswith(".app"):
+                    continue
+                bundle = os.path.join(root, name)
+                label = os.path.splitext(name)[0]
+                key = label.lower()
+                if key in apps:
+                    continue
+                apps[key] = {
+                    "name": label,
+                    "path": bundle,
+                    "launch": bundle,
+                    "icon_source": self._bundle_icon(bundle),
+                    "type": "bundle",
+                }
+
+    @staticmethod
+    def _bundle_icon(bundle: str) -> str:
+        """Find the .icns Qt can load from inside a bundle."""
+        resources = os.path.join(bundle, "Contents", "Resources")
+        info = os.path.join(bundle, "Contents", "Info.plist")
+        try:
+            import plistlib
+            with open(info, "rb") as fh:
+                declared = plistlib.load(fh).get("CFBundleIconFile") or ""
+            if declared:
+                if not declared.endswith(".icns"):
+                    declared += ".icns"
+                candidate = os.path.join(resources, declared)
+                if os.path.exists(candidate):
+                    return candidate
+        except Exception:
+            pass
+        try:
+            for name in os.listdir(resources):
+                if name.endswith(".icns"):
+                    return os.path.join(resources, name)
+        except OSError:
+            pass
+        return ""
+
     def _scan_desktop_files(self, apps: Dict[str, dict]):
         """Linux/macOS fallback so the launcher is testable off Windows."""
         roots = ["/usr/share/applications", "/usr/local/share/applications",
@@ -331,7 +369,7 @@ class AppIndex:
         elif kind == "desktop":
             _spawn(app["launch"], shell=True)
         else:
-            open_path(app["launch"])
+            platform.open_path(app["launch"])
 
     def search(self, query: str, limit: int = 6) -> List[Result]:
         if not query:
@@ -390,6 +428,9 @@ class FileIndex:
         if IS_WINDOWS:
             candidates = ["Desktop", "Documents", "Downloads", "Pictures",
                           "Music", "Videos", "OneDrive"]
+        elif IS_MACOS:
+            candidates = ["Desktop", "Documents", "Downloads", "Pictures",
+                          "Music", "Movies", "Developer"]
         else:
             candidates = ["Desktop", "Documents", "Downloads", "Pictures",
                           "Music", "Videos"]
@@ -541,14 +582,14 @@ def _action(name, keywords, icon, run, subtitle=""):
 
 
 def _settings_page(name, uri, icon):
-    r = Result(title=name, kind="Settings", subtitle="Windows Settings",
-               icon=icon, key=f"settings:{uri}")
-    r.run = (lambda u=uri: _spawn(["cmd", "/c", "start", "", u]) if IS_WINDOWS
-             else open_url(u))
+    label = "System Settings" if IS_MACOS else "Windows Settings"
+    r = Result(title=name, kind="Settings", subtitle=label, icon=icon,
+               key=f"settings:{uri}")
+    r.run = (lambda u=uri: platform.open_settings_uri(u))
     return r
 
 
-SETTINGS_PAGES = [
+WINDOWS_SETTINGS_PAGES = [
     ("Display settings", "ms-settings:display", "display"),
     ("Sound settings", "ms-settings:sound", "sound"),
     ("Bluetooth and devices", "ms-settings:bluetooth", "bluetooth"),
@@ -571,37 +612,86 @@ SETTINGS_PAGES = [
     ("Windows Security", "windowsdefender:", "lock"),
 ]
 
+MACOS_SETTINGS_PAGES = [
+    ("Displays", "x-apple.systempreferences:com.apple.Displays-Settings.extension", "display"),
+    ("Sound", "x-apple.systempreferences:com.apple.Sound-Settings.extension", "sound"),
+    ("Bluetooth", "x-apple.systempreferences:com.apple.Bluetooth-Settings.extension", "bluetooth"),
+    ("Wi-Fi", "x-apple.systempreferences:com.apple.wifi-settings-extension", "wifi"),
+    ("Network", "x-apple.systempreferences:com.apple.Network-Settings.extension", "globe"),
+    ("Appearance", "x-apple.systempreferences:com.apple.Appearance-Settings.extension", "star"),
+    ("Desktop and Dock", "x-apple.systempreferences:com.apple.Desktop-Settings.extension", "window"),
+    ("Wallpaper", "x-apple.systempreferences:com.apple.Wallpaper-Settings.extension", "image"),
+    ("Notifications", "x-apple.systempreferences:com.apple.Notifications-Settings.extension", "mail"),
+    ("Focus", "x-apple.systempreferences:com.apple.Focus-Settings.extension", "sleep"),
+    ("Keyboard", "x-apple.systempreferences:com.apple.Keyboard-Settings.extension", "keyboard"),
+    ("Trackpad", "x-apple.systempreferences:com.apple.Trackpad-Settings.extension", "mouse"),
+    ("Mouse", "x-apple.systempreferences:com.apple.Mouse-Settings.extension", "mouse"),
+    ("Accessibility", "x-apple.systempreferences:com.apple.Accessibility-Settings.extension", "user"),
+    ("Privacy and Security", "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension", "privacy"),
+    ("Battery", "x-apple.systempreferences:com.apple.Battery-Settings.extension", "battery"),
+    ("Users and Groups", "x-apple.systempreferences:com.apple.Users-Groups-Settings.extension", "user"),
+    ("Software Update", "x-apple.systempreferences:com.apple.Software-Update-Settings.extension", "update"),
+    ("Date and Time", "x-apple.systempreferences:com.apple.Date-Time-Settings.extension", "clock"),
+    ("Storage", "x-apple.systempreferences:com.apple.settings.Storage", "sheet"),
+]
+
+SETTINGS_PAGES = MACOS_SETTINGS_PAGES if IS_MACOS else WINDOWS_SETTINGS_PAGES
+
 
 def build_actions() -> List[Result]:
-    actions = [
-        _action("Lock the screen", "lock secure workstation", "lock",
-                lambda: _spawn(["rundll32.exe", "user32.dll,LockWorkStation"])
-                if IS_WINDOWS else None),
-        _action("Sleep", "suspend standby power", "sleep",
-                lambda: _spawn(["rundll32.exe", "powrprof.dll,SetSuspendState", "0,1,0"])
-                if IS_WINDOWS else None),
-        _action("Take a screenshot", "capture screen grab", "camera",
-                lambda: _spawn(["cmd", "/c", "start", "", "ms-screenclip:"])
-                if IS_WINDOWS else None),
-        _action("Open Task Manager", "processes cpu memory", "display",
-                lambda: _spawn(["taskmgr.exe"])),
-        _action("Open Terminal", "command prompt cmd shell powershell", "terminal",
-                lambda: _spawn(["wt.exe"]) if IS_WINDOWS else _spawn(["x-terminal-emulator"])),
-        _action("Open File Explorer", "files folders explorer", "folder",
-                lambda: _spawn(["explorer.exe"]) if IS_WINDOWS else open_path(os.path.expanduser("~"))),
-        _action("Open Notepad", "text editor notes", "text",
-                lambda: _spawn(["notepad.exe"])),
-        _action("Open Calculator", "math numbers", "calc",
-                lambda: _spawn(["calc.exe"])),
-        _action("Show the desktop", "minimise everything", "window",
-                lambda: _spawn(["cmd", "/c", "start", "", "shell:AppsFolder\\Microsoft.Windows.Explorer"])
-                if IS_WINDOWS else None),
-        _action("Empty the Recycle Bin", "trash delete bin clean", "bin",
-                lambda: _spawn(["powershell", "-NoProfile", "-Command",
-                                "Clear-RecycleBin -Force -ErrorAction SilentlyContinue"])),
-        _action("Sign out", "log off logoff account", "user",
-                lambda: _spawn(["shutdown", "/l"]) if IS_WINDOWS else None),
-    ]
+    """The system actions worth a keystroke, per platform."""
+    if IS_MACOS:
+        actions = [
+            _action("Lock the screen", "lock secure", "lock", platform.lock_screen),
+            _action("Sleep", "suspend standby", "sleep", platform.sleep_machine),
+            _action("Take a screenshot", "capture screen grab snip", "camera",
+                    platform.screenshot),
+            _action("Open Activity Monitor", "processes cpu memory task manager",
+                    "display", platform.open_task_manager),
+            _action("Open Terminal", "shell command line console", "terminal",
+                    platform.open_terminal),
+            _action("Open Finder", "files folders explorer", "folder",
+                    lambda: platform.open_path(os.path.expanduser("~"))),
+            _action("Open TextEdit", "notes editor text", "text",
+                    lambda: platform.open_path("/System/Applications/TextEdit.app")),
+            _action("Open Calculator", "maths numbers calc", "calc",
+                    lambda: platform.open_path("/System/Applications/Calculator.app")),
+            _action("Show the desktop", "reveal desktop minimise", "window",
+                    platform.show_desktop),
+            _action("Empty the Trash", "trash delete bin clean", "bin",
+                    platform.empty_trash),
+            _action("Sign out", "log out logoff account", "user", platform.sign_out),
+        ]
+    else:
+        actions = [
+            _action("Lock the screen", "lock secure workstation", "lock",
+                    lambda: _spawn(["rundll32.exe", "user32.dll,LockWorkStation"])
+                    if IS_WINDOWS else None),
+            _action("Sleep", "suspend standby power", "sleep",
+                    lambda: _spawn(["rundll32.exe", "powrprof.dll,SetSuspendState", "0,1,0"])
+                    if IS_WINDOWS else None),
+            _action("Take a screenshot", "capture screen grab", "camera",
+                    lambda: _spawn(["cmd", "/c", "start", "", "ms-screenclip:"])
+                    if IS_WINDOWS else None),
+            _action("Open Task Manager", "processes cpu memory", "display",
+                    lambda: _spawn(["taskmgr.exe"])),
+            _action("Open Terminal", "command prompt cmd shell powershell", "terminal",
+                    lambda: _spawn(["wt.exe"]) if IS_WINDOWS else _spawn(["x-terminal-emulator"])),
+            _action("Open File Explorer", "files folders explorer", "folder",
+                    lambda: _spawn(["explorer.exe"]) if IS_WINDOWS else open_path(os.path.expanduser("~"))),
+            _action("Open Notepad", "text editor notes", "text",
+                    lambda: _spawn(["notepad.exe"])),
+            _action("Open Calculator", "math numbers", "calc",
+                    lambda: _spawn(["calc.exe"])),
+            _action("Show the desktop", "minimise everything", "window",
+                    lambda: _spawn(["cmd", "/c", "start", "", "shell:AppsFolder\\Microsoft.Windows.Explorer"])
+                    if IS_WINDOWS else None),
+            _action("Empty the Recycle Bin", "trash delete bin clean", "bin",
+                    lambda: _spawn(["powershell", "-NoProfile", "-Command",
+                                    "Clear-RecycleBin -Force -ErrorAction SilentlyContinue"])),
+            _action("Sign out", "log off logoff account", "user",
+                    lambda: _spawn(["shutdown", "/l"]) if IS_WINDOWS else None),
+        ]
     actions += [_settings_page(n, u, i) for n, u, i in SETTINGS_PAGES]
     return [a for a in actions if a.run is not None]
 
@@ -729,56 +819,12 @@ def web_results(query: str, engine: str) -> List[Result]:
 # ------------------------------------------------------------------ windows ---
 
 def list_open_windows() -> List[dict]:
-    """Top-level windows you could switch to. Windows only."""
-    if not IS_WINDOWS:
-        return []
-    import ctypes
-    from ctypes import wintypes
-
-    user32 = ctypes.windll.user32
-    kernel32 = ctypes.windll.kernel32
-    WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
-
-    windows: List[dict] = []
-    ignored = {"Program Manager", "Windows Input Experience", "Task View",
-               "Default IME", "MSCTFIME UI", "Circle", "Search"}
-
-    @WNDENUMPROC
-    def _cb(hwnd, _lparam):
-        if not user32.IsWindowVisible(hwnd):
-            return True
-        length = user32.GetWindowTextLengthW(hwnd)
-        if length <= 0:
-            return True
-        buf = ctypes.create_unicode_buffer(length + 1)
-        user32.GetWindowTextW(hwnd, buf, length + 1)
-        title = buf.value.strip()
-        if not title or title in ignored:
-            return True
-        ex_style = user32.GetWindowLongW(hwnd, -20)
-        if ex_style & 0x00000080:  # WS_EX_TOOLWINDOW
-            return True
-        windows.append({"hwnd": hwnd, "title": title})
-        return True
-
-    try:
-        user32.EnumWindows(_cb, 0)
-    except Exception as exc:
-        print(f"[circle] window enumeration failed: {exc}")
-    return windows
+    """Top-level windows you could switch to."""
+    return platform.list_windows()
 
 
-def focus_window(hwnd):
-    if not IS_WINDOWS:
-        return
-    import ctypes
-    user32 = ctypes.windll.user32
-    try:
-        user32.ShowWindow(hwnd, 9)      # SW_RESTORE
-        user32.SetForegroundWindow(hwnd)
-        user32.BringWindowToTop(hwnd)
-    except Exception as exc:
-        print(f"[circle] cannot focus window {hwnd}: {exc}")
+def focus_window(handle):
+    platform.activate_window(handle)
 
 
 # --------------------------------------------------------------- the engine ---
@@ -831,11 +877,14 @@ class SearchEngine:
             results.append(calc)
 
         for win in self.windows():
-            score = score_text(query, win["title"])
+            title = win.get("title") or win.get("app") or ""
+            score = score_text(query, title)
             if score > 0:
-                r = Result(title=win["title"], kind="Windows", subtitle="Switch to window",
-                           icon="window", score=score, key=f"win:{win['title'].lower()}")
-                r.run = (lambda h=win["hwnd"]: focus_window(h))
+                subtitle = win.get("app") or "Switch to window"
+                r = Result(title=title, kind="Windows", subtitle=subtitle,
+                           icon="window", score=score,
+                           key=f"win:{title.lower()}")
+                r.run = (lambda h=win["handle"]: platform.activate_window(h))
                 results.append(r)
 
         results.extend(self.apps.search(query, limit_per_group))

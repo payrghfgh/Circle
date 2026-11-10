@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QFont, QIcon, QColor, QPainter, QBrush, QPen
 import icons
+import platform_layer as platform
 import theme
 from config import save_config, DEFAULT_CONFIG
 from action_executor import set_autostart, get_autostart
@@ -252,7 +253,9 @@ class SettingsWindow(QMainWindow):
         )
         hotkey_layout.addRow("Search scope:", self.index_files_checkbox)
 
-        self.autostart_checkbox = QCheckBox("Start Circle with Windows")
+        self.autostart_checkbox = QCheckBox(
+            "Start Circle at login" if platform.IS_MACOS else "Start Circle with Windows"
+        )
         is_auto = self.config_data.get("autostart", True) or get_autostart()
         self.autostart_checkbox.setChecked(is_auto)
         hotkey_layout.addRow("Startup:", self.autostart_checkbox)

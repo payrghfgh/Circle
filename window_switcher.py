@@ -1,59 +1,20 @@
 import os
-import sys
-import ctypes
-from ctypes import wintypes
-from PySide6.QtCore import Qt, Signal, QFileInfo, QSize
+
+from PySide6.QtCore import Qt, QFileInfo, QSize
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLineEdit, QListWidget, QListWidgetItem, QLabel,
     QApplication, QFrame, QHBoxLayout, QFileIconProvider
 )
 from PySide6.QtGui import QFont, QIcon, QPixmap, QColor
+
+import platform_layer as platform
 import theme
 
-IS_WINDOWS = sys.platform == "win32"
-
-# The Win32 handles only exist on Windows; everything below degrades to an
-# empty list elsewhere so the module still imports (tests, tooling).
-user32 = ctypes.windll.user32 if IS_WINDOWS else None
-kernel32 = ctypes.windll.kernel32 if IS_WINDOWS else None
-
-WNDENUMPROC = (ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
-               if IS_WINDOWS else None)
-if IS_WINDOWS:
-    user32.EnumWindows.argtypes = [WNDENUMPROC, wintypes.LPARAM]
-    user32.EnumWindows.restype = wintypes.BOOL
-
-    user32.IsWindowVisible.argtypes = [wintypes.HWND]
-    user32.IsWindowVisible.restype = wintypes.BOOL
-
-    user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
-    user32.GetWindowTextLengthW.restype = ctypes.c_int
-
-    user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
-    user32.GetWindowTextW.restype = ctypes.c_int
-
-    user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
-    user32.GetWindowThreadProcessId.restype = wintypes.DWORD
 
 def get_process_path(hwnd):
-    if not IS_WINDOWS:
-        return ""
-    try:
-        pid = wintypes.DWORD()
-        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-        if pid.value:
-            # PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
-            h_proc = kernel32.OpenProcess(0x1000, False, pid.value)
-            if h_proc:
-                buf = ctypes.create_unicode_buffer(512)
-                size = wintypes.DWORD(512)
-                if kernel32.QueryFullProcessImageNameW(h_proc, 0, buf, ctypes.byref(size)):
-                    kernel32.CloseHandle(h_proc)
-                    return buf.value
-                kernel32.CloseHandle(h_proc)
-    except Exception:
-        pass
-    return None
+    """Kept for callers that still pass a window handle."""
+    return ""
+
 
 class WindowSwitcherWindow(QWidget):
     def __init__(self):
@@ -119,39 +80,10 @@ class WindowSwitcherWindow(QWidget):
         layout.addWidget(self.container)
 
     def scan_open_windows(self):
-        """Enumerates all currently open top-level application windows."""
-        self.open_windows = []
-        if not IS_WINDOWS:
-            self.status_label.setText("Windows only")
-            return
-        ignored_titles = [
-            "Program Manager", "Settings", "Default IME", "MSCTFIME UI",
-            "Windows Input Experience", "Task View", "Circle - Wheel Menu Customizer"
-        ]
-
-        @WNDENUMPROC
-        def enum_cb(hwnd, lparam):
-            if user32.IsWindowVisible(hwnd):
-                length = user32.GetWindowTextLengthW(hwnd)
-                if length > 0:
-                    buf = ctypes.create_unicode_buffer(length + 1)
-                    user32.GetWindowTextW(hwnd, buf, length + 1)
-                    title = buf.value.strip()
-
-                    if title and title not in ignored_titles:
-                        # Filter out tool windows or windows with no taskbar representation
-                        ex_style = user32.GetWindowLongW(hwnd, -20)
-                        if not (ex_style & 0x00000080):  # WS_EX_TOOLWINDOW
-                            proc_path = get_process_path(hwnd)
-                            self.open_windows.append({
-                                "hwnd": hwnd,
-                                "title": title,
-                                "proc_path": proc_path
-                            })
-            return True
-
-        user32.EnumWindows(enum_cb, 0)
-        self.status_label.setText(f"{len(self.open_windows)} open")
+        """Every top-level window you could switch to."""
+        self.open_windows = platform.list_windows()
+        count = len(self.open_windows)
+        self.status_label.setText(f"{count} open" if count else "nothing to switch to")
 
     def show_centered(self):
         self.scan_open_windows()
@@ -181,12 +113,17 @@ class WindowSwitcherWindow(QWidget):
         self.list_widget.clear()
 
         for win in self.open_windows:
-            if not query or query in win["title"].lower():
-                icon = self.get_window_icon(win["proc_path"])
-                item = QListWidgetItem(win["title"])
+            title = win.get("title") or win.get("app") or ""
+            if not query or query in title.lower() or query in (win.get("app") or "").lower():
+                icon = self.get_window_icon(win.get("proc_path", ""))
+                label = title
+                app_name = win.get("app") or ""
+                if app_name and app_name.lower() not in title.lower():
+                    label = f"{title}   ·   {app_name}"
+                item = QListWidgetItem(label)
                 if not icon.isNull():
                     item.setIcon(icon)
-                item.setData(Qt.UserRole, win["hwnd"])
+                item.setData(Qt.UserRole, win.get("handle"))
                 self.list_widget.addItem(item)
 
         if self.list_widget.count() > 0:
@@ -207,16 +144,9 @@ class WindowSwitcherWindow(QWidget):
                 self.list_widget.setCurrentRow(curr - 1)
 
     def switch_to_selected(self):
-        if not IS_WINDOWS:
+        item = self.list_widget.currentItem()
+        if item is None:
             return
-        curr_item = self.list_widget.currentItem()
-        if curr_item:
-            hwnd = curr_item.data(Qt.UserRole)
-            self.hide()
-            try:
-                # SW_RESTORE = 9
-                user32.ShowWindow(hwnd, 9)
-                user32.SetForegroundWindow(hwnd)
-                user32.BringWindowToTop(hwnd)
-            except Exception as e:
-                print(f"Error focusing window {hwnd}: {e}")
+        handle = item.data(Qt.UserRole)
+        self.hide()
+        platform.activate_window(handle)

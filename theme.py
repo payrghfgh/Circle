@@ -35,9 +35,14 @@ SHADOW = QColor(0, 0, 0, 170)
 
 # ------------------------------------------------------------------ type ----
 
-_UI_STACK = ["Segoe UI Variable Text", "Segoe UI", "Inter", "Noto Sans", "DejaVu Sans"]
-_DISPLAY_STACK = ["Segoe UI Variable Display", "Segoe UI", "Inter", "Noto Sans", "DejaVu Sans"]
-_MONO_STACK = ["Cascadia Mono", "Consolas", "JetBrains Mono", "DejaVu Sans Mono"]
+# Windows first, then the macOS system faces, then a neutral fallback.
+_UI_STACK = ["Segoe UI Variable Text", "Segoe UI", "SF Pro Text", "Helvetica Neue",
+             "Inter", "Noto Sans", "DejaVu Sans"]
+_DISPLAY_STACK = ["Segoe UI Variable Display", "Segoe UI", "SF Pro Display",
+                  "Helvetica Neue", "Inter", "Noto Sans", "DejaVu Sans"]
+_MONO_STACK = ["Cascadia Mono", "Consolas", "SF Mono", "Menlo",
+               "JetBrains Mono", "DejaVu Sans Mono"]
+_EMOJI_STACK = ["Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji"]
 
 
 def _families(wanted):
@@ -45,6 +50,14 @@ def _families(wanted):
     available = set(QFontDatabase.families())
     kept = [f for f in wanted if f in available]
     return kept or wanted[-1:]
+
+
+def emoji_font(size=15):
+    """Only for slots still carrying an emoji glyph from an older config."""
+    f = QFont()
+    f.setFamilies(_families(_EMOJI_STACK))
+    f.setPixelSize(size)
+    return f
 
 
 def font(size=13, weight=QFont.Normal, display=False, mono=False, tracking=0.0):
@@ -57,7 +70,7 @@ def font(size=13, weight=QFont.Normal, display=False, mono=False, tracking=0.0):
     f.setWeight(weight)
     if tracking:
         f.setLetterSpacing(QFont.AbsoluteSpacing, tracking)
-    f.setHintingPreference(QFont.PreferFullHinting)
+    f.setHintingPreference(QFont.PreferDefaultHinting)
     return f
 
 

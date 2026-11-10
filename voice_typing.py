@@ -4,9 +4,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QApplication
 from PySide6.QtGui import QFont, QColor
 import theme
-from pynput.keyboard import Controller, Key
-
-keyboard_controller = Controller()
+import platform_layer as platform
 
 class VoiceTypingHUD(QWidget):
     """Sleek indicator HUD for Voice-to-Text Dictation."""
@@ -52,9 +50,8 @@ class VoiceTypingHUD(QWidget):
         self.raise_()
         self.hide_timer.start()
 
-        # Trigger Windows 10/11 native Voice Typing Dictation (Win + H)
+        # Hand off to the system's own dictation (Win+H, or fn-fn on macOS).
         time.sleep(0.1)
-        keyboard_controller.press(Key.cmd)
-        keyboard_controller.press('h')
-        keyboard_controller.release('h')
-        keyboard_controller.release(Key.cmd)
+        if not platform.trigger_dictation():
+            self.label.setText("Dictation: press your dictation key")
+            self.hide_timer.start()
