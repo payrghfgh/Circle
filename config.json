@@ -1,11 +1,9 @@
 {
-    "hotkey": "<ctrl>+<space>",
-    "search_hotkey": "<alt>+<space>",
     "trigger_mode": "toggle",
     "search": {
         "index_files": true,
         "max_results": 5,
-        "web_engine": "https://www.google.com/search?q={q}",
+        "web_engine": "https://www.google.com/search",
         "extra_index_roots": []
     },
     "theme": {
