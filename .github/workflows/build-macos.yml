@@ -1,0 +1,71 @@
+name: macOS app
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Circle for macOS (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14      # Apple Silicon
+            arch: arm64
+          - runner: macos-13      # Intel
+            arch: x64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Check the sources compile
+        run: python -m compileall -q .
+
+      - name: Generate the icon
+        run: python scripts/make_icns.py
+
+      - name: Freeze with PyInstaller
+        run: python -m PyInstaller Circle-macos.spec --noconfirm --clean
+
+      - name: Check the app was produced
+        run: |
+          test -d dist/Circle.app || { echo "dist/Circle.app missing"; exit 1; }
+          test -x dist/Circle.app/Contents/MacOS/Circle || { echo "bundle executable missing"; exit 1; }
+
+      - name: Sign (ad-hoc) and build the dmg
+        run: |
+          codesign --force --deep --sign - dist/Circle.app
+          codesign --verify --deep --strict --verbose=2 dist/Circle.app || true
+          hdiutil create -volname "Circle" -srcfolder dist/Circle.app \
+            -ov -format UDZO "dist/Circle-1.1.0-${{ matrix.arch }}.dmg"
+          ls -lh dist/*.dmg
+
+      - name: Upload the dmg
+        uses: actions/upload-artifact@v4
+        with:
+          name: Circle-macos-${{ matrix.arch }}
+          path: dist/Circle-1.1.0-${{ matrix.arch }}.dmg
+          if-no-files-found: error
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Circle-1.1.0-${{ matrix.arch }}.dmg
