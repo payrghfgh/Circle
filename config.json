@@ -1,0 +1,80 @@
+{
+    "hotkey": "<ctrl>+<.>",
+    "trigger_mode": "toggle",
+    "theme": {
+        "bg_color": "#1E1E2E",
+        "accent_color": "#89B4FA",
+        "hover_color": "#313244",
+        "text_color": "#CDD6F4",
+        "radius": 140,
+        "inner_radius": 45
+    },
+    "slots": [
+        {
+            "id": 1,
+            "name": "Volume Up",
+            "icon": "🔊",
+            "action_type": "volume",
+            "action_detail": "up",
+            "color": "#89B4FA"
+        },
+        {
+            "id": 2,
+            "name": "Task Manager",
+            "icon": "🖥",
+            "action_type": "keyboard",
+            "action_detail": "ctrl+shift+esc",
+            "color": "#A6E3A1"
+        },
+        {
+            "id": 3,
+            "name": "Screen Snippet",
+            "icon": "✂️",
+            "action_type": "system",
+            "action_detail": "snip",
+            "color": "#FAB387"
+        },
+        {
+            "id": 4,
+            "name": "File Explorer",
+            "icon": "💾",
+            "action_type": "keyboard",
+            "action_detail": "win+e",
+            "color": "#F9E2AF"
+        },
+        {
+            "id": 5,
+            "name": "Raycast App Search",
+            "icon": "🚀",
+            "action_type": "app_search",
+            "action_detail": "",
+            "color": "#89B4FA"
+        },
+        {
+            "id": 6,
+            "name": "Voice-to-Text",
+            "icon": "🎙️",
+            "action_type": "voice_to_text",
+            "action_detail": "",
+            "color": "#A6E3A1"
+        },
+        {
+            "id": 7,
+            "name": "Window Switcher",
+            "icon": "🪟",
+            "action_type": "window_switcher",
+            "action_detail": "",
+            "color": "#CBA6F7"
+        },
+        {
+            "id": 8,
+            "name": "Volume Down",
+            "icon": "🔉",
+            "action_type": "volume",
+            "action_detail": "down",
+            "color": "#F38BA8"
+        }
+    ],
+    "autostart": true,
+    "double_space_dot": false
+}
