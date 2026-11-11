@@ -82,6 +82,7 @@ class CircleApp(QObject):
         self.settings_window.check_updates_requested.connect(
             lambda: self.check_for_updates(manual=True)
         )
+        self.search_window.action_failed.connect(self._on_action_failed)
 
         self._build_tray()
         self.hotkey_manager.start()
@@ -192,6 +193,12 @@ class CircleApp(QObject):
         self.settings_window.show()
         self.settings_window.raise_()
         self.settings_window.activateWindow()
+
+    def _on_action_failed(self, message: str):
+        """A windowed build has no console, so failures go to a notification."""
+        print(f"[circle] action failed: {message}")
+        self.tray_icon.showMessage("Circle", message,
+                                   QSystemTrayIcon.Warning, 6000)
 
     def on_config_saved(self, new_config):
         self.config_data = new_config

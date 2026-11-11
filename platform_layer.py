@@ -33,8 +33,11 @@ LAUNCH_AGENT_LABEL = "com.circle.launcher"
 
 # ------------------------------------------------------------------ plumbing ---
 
-def run(args, shell=False, timeout=None) -> Optional[str]:
-    """Fire and forget, with no console flash on Windows."""
+def run(args, shell=False, timeout=None) -> bool:
+    """Fire and forget, with no console flash on Windows.
+
+    Returns False only when the process could not be started at all.
+    """
     try:
         proc = subprocess.Popen(
             args, shell=shell, creationflags=CREATE_NO_WINDOW,
@@ -43,10 +46,10 @@ def run(args, shell=False, timeout=None) -> Optional[str]:
         )
         if timeout:
             proc.wait(timeout=timeout)
-        return None
+        return True
     except Exception as exc:
         print(f"[circle] failed to run {args!r}: {exc}")
-        return None
+        return False
 
 
 def capture(args, timeout=6) -> str:
@@ -70,41 +73,49 @@ def osascript(script: str) -> str:
 
 # ---------------------------------------------------------------- files/urls ---
 
-def open_path(path: str):
+def open_path(path: str) -> bool:
+    """Open a file, folder, shortcut or app bundle.
+
+    Returns False when nothing could be started, so the caller can tell the
+    user instead of appearing to do nothing.
+    """
     if IS_WINDOWS:
         try:
             os.startfile(path)  # noqa: S606 - intentional shell open
-            return
-        except Exception as exc:
-            print(f"[circle] cannot open {path}: {exc}")
-            return
+            return True
+        except OSError as exc:
+            # ShellExecute refuses some targets that the shell itself resolves
+            # (broken associations, shortcuts in odd locations). Try once more
+            # through cmd's start before giving up.
+            print(f"[circle] startfile failed for {path}: {exc}")
+        if run(["cmd", "/c", "start", "", path]):
+            return True
+        return False
+
     if IS_MACOS:
-        run(["open", path])
-    else:
-        run(["xdg-open", path])
+        return run(["open", path])
+    return run(["xdg-open", path])
 
 
-def reveal_path(path: str):
+def reveal_path(path: str) -> bool:
     """Show the item in the file manager rather than opening it."""
     if IS_WINDOWS:
         if os.path.isdir(path):
-            run(["explorer.exe", path])
-        else:
-            run(["explorer.exe", "/select,", os.path.normpath(path)])
-    elif IS_MACOS:
+            return run(["explorer.exe", path])
+        return run(["explorer.exe", "/select,", os.path.normpath(path)])
+    if IS_MACOS:
         if os.path.isdir(path):
-            run(["open", path])
-        else:
-            run(["open", "-R", path])
-    else:
-        run(["xdg-open", os.path.dirname(path) or "."])
+            return run(["open", path])
+        return run(["open", "-R", path])
+    return run(["xdg-open", os.path.dirname(path) or "."])
 
 
-def open_url(url: str):
+def open_url(url: str) -> bool:
     try:
-        webbrowser.open(url)
+        return bool(webbrowser.open(url))
     except Exception as exc:
         print(f"[circle] cannot open url {url}: {exc}")
+        return False
 
 
 # ------------------------------------------------------------------- volume ---

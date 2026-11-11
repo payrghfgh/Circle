@@ -61,17 +61,28 @@ GROUP_ORDER = ["Calculator", "Windows", "Apps", "Files", "Folders", "Actions",
 
 # ------------------------------------------------------------------- utils ---
 
-def _spawn(args, shell=False):
+def _spawn(args, shell=False) -> bool:
     try:
         subprocess.Popen(args, shell=shell, creationflags=CREATE_NO_WINDOW,
                          close_fds=True)
+        return True
     except Exception as exc:  # pragma: no cover - platform dependent
         print(f"[circle] failed to run {args!r}: {exc}")
+        return False
 
 
-open_path = platform.open_path
-reveal_path = platform.reveal_path
-open_url = platform.open_url
+# Thin wrappers rather than aliases: binding the function object at import time
+# means later changes to the platform layer never reach these call sites.
+def open_path(path: str) -> bool:
+    return platform.open_path(path)
+
+
+def reveal_path(path: str) -> bool:
+    return platform.reveal_path(path)
+
+
+def open_url(url: str) -> bool:
+    return platform.open_url(url)
 
 
 def score_text(query: str, text: str) -> float:
@@ -363,13 +374,28 @@ class AppIndex:
     # -- launching -----------------------------------------------------------
 
     def launch(self, app: dict):
+        """Start an app, and raise a readable error if the OS refuses."""
         kind = app.get("type")
+        name = app.get("name") or "That app"
+
         if kind == "uwp":
-            _spawn(["explorer.exe", app["launch"]])
-        elif kind == "desktop":
-            _spawn(app["launch"], shell=True)
-        else:
-            platform.open_path(app["launch"])
+            if _spawn(["explorer.exe", app["launch"]]):
+                return
+            raise RuntimeError(f"Windows would not open {name}.")
+
+        if kind == "desktop":
+            if _spawn(app["launch"], shell=True):
+                return
+            raise RuntimeError(f"Could not run the command for {name}.")
+
+        target = app.get("launch") or app.get("path") or ""
+        if not target:
+            raise RuntimeError(f"{name} has no launch target recorded.")
+        if not os.path.exists(target):
+            raise RuntimeError(f"{name} is no longer at {target} — it may have been uninstalled.")
+        if platform.open_path(target):
+            return
+        raise RuntimeError(f"Windows would not open {name}.")
 
     def search(self, query: str, limit: int = 6) -> List[Result]:
         if not query:

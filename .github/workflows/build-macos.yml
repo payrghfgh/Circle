@@ -38,6 +38,11 @@ jobs:
       - name: Check the sources compile
         run: python -m compileall -q .
 
+      - name: Run the activation tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python tests/test_activation.py
+
       - name: Generate the icon
         run: python scripts/make_icns.py
 

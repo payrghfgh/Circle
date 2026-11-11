@@ -162,6 +162,7 @@ class SearchWindow(QWidget):
     """Frameless panel: field, grouped results, key hints."""
 
     closed = Signal()
+    action_failed = Signal(str)
 
     def __init__(self, engine: Optional[SearchEngine] = None):
         super().__init__()
@@ -432,13 +433,17 @@ class SearchWindow(QWidget):
         self.engine.record_use(result)
         self._suppress_hide = True
         self.hide()
-        QTimer.singleShot(70, self._invoke, action)
+        # Let the panel leave the screen before the target app takes focus.
+        # PySide6's singleShot takes (msec, functor) or (msec, context, functor)
+        # — never extra arguments, so the callable is bound in a closure.
+        QTimer.singleShot(70, self, lambda a=action, t=result.title: self._invoke(a, t))
 
-    def _invoke(self, action):
+    def _invoke(self, action, title=""):
         try:
             action()
         except Exception as exc:
-            print(f"[circle] action failed: {exc}")
+            # A windowed build has no console, so a failure has to be shown.
+            self.action_failed.emit(f"{title}: {exc}" if title else str(exc))
         finally:
             self._suppress_hide = False
 
