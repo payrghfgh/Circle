@@ -51,10 +51,13 @@ jobs:
 
       - name: Build the installer
         run: |
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer\Circle.iss"
-          $installer = Get-ChildItem "installer\output\Circle-*-setup.exe" -ErrorAction SilentlyContinue
-          if (-not $installer) { throw "installer missing" }
-          Write-Host "Built $($installer.Name)"
+          $Version = (python -c "import version; print(version.__version__)").Trim()
+          Write-Host "Building installer for $Version"
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=$Version" "installer\Circle.iss"
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
+          $expected = "installer\output\Circle-$Version-setup.exe"
+          if (-not (Test-Path $expected)) { throw "expected $expected, got: $(Get-ChildItem installer\output)" }
+          Write-Host "Built $expected"
         shell: pwsh
 
       - name: Upload the installer

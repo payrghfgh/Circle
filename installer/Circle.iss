@@ -1,12 +1,14 @@
 ; Circle — Inno Setup 6 installer script
-; Build with:  iscc installer\Circle.iss
+; Build with:  iscc /DAppVersion=<version> installer\Circle.iss
 ; Produces:    installer\output\Circle-<version>-setup.exe
 ;
 ; Per-user install by default (no admin prompt), Windows 10 and 11 x64.
 
 #define AppName "Circle"
+; The version comes from version.py via /DAppVersion=<version>. Refusing to
+; guess means a build can never quietly ship the wrong number.
 #ifndef AppVersion
-  #define AppVersion "1.2.0"
+  #error AppVersion is not defined. Pass /DAppVersion=<version> (build_windows.ps1 does this).
 #endif
 #define AppPublisher "Circle"
 #define AppExeName "Circle.exe"
