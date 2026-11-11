@@ -38,13 +38,23 @@ jobs:
       - name: Check the sources compile
         run: python -m compileall -q .
 
-      - name: Run the activation tests
+      - name: Run the tests
         env:
           QT_QPA_PLATFORM: offscreen
+        shell: bash
         run: |
-          python tests/test_shortcuts.py
-          python tests/test_activation.py
-          python tests/test_startup.py
+          set -uo pipefail
+          status=0
+          for test in test_shortcuts test_activation test_startup; do
+            python "tests/${test}.py"
+            code=$?
+            echo "::notice::${test} exited ${code}"
+            if [ $code -ne 0 ]; then
+              echo "::error::${test} failed with exit code ${code}"
+              status=$code
+            fi
+          done
+          exit $status
 
       - name: Generate the icon
         run: python scripts/make_icns.py
