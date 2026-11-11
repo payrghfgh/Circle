@@ -282,6 +282,23 @@ class SearchWindow(QWidget):
         if self._app_refresh is not None:
             self._app_refresh.refreshed.connect(self._on_index_ready)
 
+    def stop_threads(self, timeout_ms: int = 2500):
+        """Stop background work before the app exits.
+
+        A QThread still running at interpreter shutdown aborts the process on
+        Windows and macOS, so quitting mid-index has to wind it down first.
+        Both workers check for interruption between directories, so this is
+        usually immediate; the terminate is only a last resort at exit.
+        """
+        for thread in (self._indexer, self._app_refresh):
+            if thread is None or not thread.isRunning():
+                continue
+            thread.requestInterruption()
+            if thread.wait(timeout_ms):
+                continue
+            thread.terminate()
+            thread.wait(500)
+
     def _on_index_ready(self, _count: int):
         if self.isVisible():
             self.refresh(self.input.text())

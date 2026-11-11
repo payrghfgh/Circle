@@ -566,15 +566,19 @@ class FileIndex:
         except Exception as exc:
             print(f"[circle] could not save file index: {exc}")
 
-    def build(self, roots: Optional[List[str]] = None) -> int:
+    def build(self, roots: Optional[List[str]] = None, should_stop=None) -> int:
         self.building = True
         entries: List[dict] = []
         roots = roots or self.default_roots()
         deadline = time.time() + self.BUILD_SECONDS
+        stopped = False
         try:
             for root in roots:
                 base_depth = root.rstrip(os.sep).count(os.sep)
                 for dirpath, dirnames, filenames in os.walk(root):
+                    if should_stop is not None and should_stop():
+                        stopped = True
+                        break
                     if len(entries) >= self.MAX_ENTRIES or time.time() > deadline:
                         break
                     if dirpath.count(os.sep) - base_depth >= self.MAX_DEPTH:
@@ -598,6 +602,12 @@ class FileIndex:
                         entries.append({"n": name, "nl": name.lower(),
                                         "p": os.path.join(dirpath, name),
                                         "d": 1, "r": rel_dir})
+                if stopped:
+                    break
+            if stopped:
+                # Keep whatever we had: a partial index beats an empty one, and
+                # it is replaced on the next run.
+                return len(self.entries)
             self.entries = entries
             self.built_at = time.time()
             self._normalise()
@@ -714,7 +724,7 @@ class FileIndexer(QThread):
 
     def run(self):
         try:
-            count = self.index.build(self.roots)
+            count = self.index.build(self.roots, should_stop=self.isInterruptionRequested)
         except Exception as exc:
             print(f"[circle] file index failed: {exc}")
             count = 0

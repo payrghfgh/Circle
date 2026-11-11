@@ -313,6 +313,9 @@ class CircleApp(QObject):
                                        QSystemTrayIcon.Warning, 6000)
 
     def exit_app(self):
+        search = self._windows.get("search")
+        if search is not None:
+            search.stop_threads()
         self.hotkey_manager.stop()
         self.tray_icon.hide()
         QApplication.quit()
