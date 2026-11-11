@@ -332,7 +332,7 @@ class CircleApp(QObject):
             thread.requestInterruption()
             # The check is inside a blocking HTTP call, so waiting rarely helps;
             # terminating at exit is the lesser evil.
-            if not thread.wait(1200):
+            if not thread.wait(2000):
                 thread.terminate()
                 thread.wait(300)
 

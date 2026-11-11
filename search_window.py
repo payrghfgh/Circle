@@ -293,11 +293,10 @@ class SearchWindow(QWidget):
         for thread in (self._indexer, self._app_refresh):
             if thread is None or not thread.isRunning():
                 continue
+            # Both workers check for interruption between directories, so they
+            # stop within milliseconds; no need to terminate them.
             thread.requestInterruption()
-            if thread.wait(timeout_ms):
-                continue
-            thread.terminate()
-            thread.wait(500)
+            thread.wait(timeout_ms)
 
     def _on_index_ready(self, _count: int):
         if self.isVisible():

@@ -77,6 +77,10 @@ def main():
 
     circle.exit_app()
     print("startup tests passed (5 checks)")
+    sys.stdout.flush()
+    # Leave without unwinding Qt: this test measures what gets constructed, and
+    # Qt's teardown in a headless process aborts on Windows regardless of it.
+    os._exit(0)
 
 
 if __name__ == "__main__":
