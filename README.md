@@ -10,11 +10,11 @@ Runs on **Windows 10/11 (64-bit)** and **macOS 11+ (Apple Silicon and Intel)**.
 
 ## Install
 
-**Windows** — download `Circle-1.2.2-setup.exe` from [Releases](../../releases) and
+**Windows** — download `Circle-1.2.3-setup.exe` from [Releases](../../releases) and
 run it. Per-user install, no admin prompt, into `%LOCALAPPDATA%\Programs\Circle`.
 
-**macOS** — download `Circle-1.2.2-arm64.dmg` (Apple Silicon) or
-`Circle-1.2.2-x64.dmg` (Intel), open it, and drag Circle to Applications.
+**macOS** — download `Circle-1.2.3-arm64.dmg` (Apple Silicon) or
+`Circle-1.2.3-x64.dmg` (Intel), open it, and drag Circle to Applications.
 
 The macOS build is ad-hoc signed, not notarised, so the first launch needs one of:
 
