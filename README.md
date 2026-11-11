@@ -10,11 +10,11 @@ Runs on **Windows 10/11 (64-bit)** and **macOS 11+ (Apple Silicon and Intel)**.
 
 ## Install
 
-**Windows** — download `Circle-1.4.0-setup.exe` from [Releases](../../releases) and
+**Windows** — download `Circle-1.4.1-setup.exe` from [Releases](../../releases) and
 run it. Per-user install, no admin prompt, into `%LOCALAPPDATA%\Programs\Circle`.
 
-**macOS** — download `Circle-1.4.0-arm64.dmg` (Apple Silicon) or
-`Circle-1.4.0-x64.dmg` (Intel), open it, and drag Circle onto the Applications
+**macOS** — download `Circle-1.4.1-arm64.dmg` (Apple Silicon) or
+`Circle-1.4.1-x64.dmg` (Intel), open it, and drag Circle onto the Applications
 folder in the window that appears — the disk image is laid out for exactly that.
 
 The macOS build is ad-hoc signed, not notarised, so the first launch needs one of:
