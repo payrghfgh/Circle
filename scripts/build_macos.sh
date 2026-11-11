@@ -4,11 +4,10 @@
 #   ./scripts/build_macos.sh
 #
 # Needs Xcode command line tools (for codesign and hdiutil) and Python 3.10+.
-# Output: dist/Circle-1.1.1-<arch>.dmg
+# Output: dist/Circle-<version>-<arch>.dmg
 
 set -euo pipefail
 
-VERSION="1.1.1"
 cd "$(dirname "$0")/.."
 
 ARCH="$(uname -m)"
@@ -19,6 +18,7 @@ case "$ARCH" in
 esac
 
 PYTHON="${PYTHON:-python3}"
+VERSION="$("$PYTHON" -c "import version; print(version.__version__)")"
 
 echo "== Circle build for macOS ($ARCH_LABEL) =="
 "$PYTHON" --version

@@ -10,11 +10,11 @@ Runs on **Windows 10/11 (64-bit)** and **macOS 11+ (Apple Silicon and Intel)**.
 
 ## Install
 
-**Windows** — download `Circle-1.1.1-setup.exe` from [Releases](../../releases) and
+**Windows** — download `Circle-1.2.0-setup.exe` from [Releases](../../releases) and
 run it. Per-user install, no admin prompt, into `%LOCALAPPDATA%\Programs\Circle`.
 
-**macOS** — download `Circle-1.1.1-arm64.dmg` (Apple Silicon) or
-`Circle-1.1.1-x64.dmg` (Intel), open it, and drag Circle to Applications.
+**macOS** — download `Circle-1.2.0-arm64.dmg` (Apple Silicon) or
+`Circle-1.2.0-x64.dmg` (Intel), open it, and drag Circle to Applications.
 
 The macOS build is ad-hoc signed, not notarised, so the first launch needs one of:
 
@@ -33,6 +33,24 @@ Two system permissions make the whole app work:
 | **Screen Recording** | reading window titles so Search can find them | System Settings → Privacy & Security → Screen Recording |
 
 Without Screen Recording, Search still lists windows by app name — just not by title.
+
+## Updates
+
+Circle checks GitHub Releases once a day and tells you when a newer version is
+out — it never installs anything without a click.
+
+When a release is found you get a panel with its notes, the download size, and a
+**Download and install** button. The installer is fetched, verified non-empty,
+and then:
+
+- **Windows** — the downloaded `setup.exe` runs silently, closes Circle, replaces
+  the files and reopens it.
+- **macOS** — a small helper script waits for Circle to quit, mounts the `.dmg`,
+  copies `Circle.app` over the old one, clears the quarantine flag and reopens it.
+
+Turn it off in Settings → Updates, or check on demand from the tray menu or the
+**Check now** button. A copy running from a git checkout never self-updates; it
+tells you to `git pull` instead.
 
 ## Shortcuts
 
@@ -109,9 +127,10 @@ git tag v1.1.1
 git push origin v1.1.1
 ```
 
-`build-installer.yml` produces `Circle-1.1.1-setup.exe` on `windows-latest`;
-`build-macos.yml` produces `Circle-1.1.1-arm64.dmg` and `Circle-1.1.1-x64.dmg` on
-`macos-14` and `macos-13`. All three attach to the release automatically.
+`build-installer.yml` produces the Windows `setup.exe` on `windows-latest`;
+`build-macos.yml` produces the arm64 and x64 `.dmg` files on `macos-latest` and
+`macos-15-intel`. All three attach to the release automatically, and their names
+carry the version from `version.py`.
 
 **Locally:**
 
@@ -123,6 +142,9 @@ git push origin v1.1.1
 
 ```
 main.py               app shell: menu-bar/tray item, hotkeys, wiring
+version.py            the app version, and the GitHub repo the updater reads
+updater.py            update check, download and install
+update_dialog.py      the update prompt
 platform_layer.py     every OS call: volume, windows, screenshots, login item
 search_window.py      the Search panel
 search_providers.py   apps, files, windows, actions, settings, calculator, web
@@ -153,6 +175,10 @@ missing. After granting it, restart Circle.
 
 **Search shows no files.** The index builds in the background on first launch and
 can take a minute. Delete `file_index.json` from the data folder to force a rebuild.
+
+**Updates say "no build for this platform yet".** A release was published before
+its installers finished building. Wait for the workflow to finish, then check
+again from the tray menu.
 
 **Store apps are missing (Windows).** They are fetched once with PowerShell and
 cached for a week. Delete `store_apps.json` to refresh.

@@ -3,7 +3,7 @@
 #   powershell -ExecutionPolicy Bypass -File .\build_windows.ps1
 #
 # Needs: Python 3.10+ (64-bit) and Inno Setup 6 (https://jrsoftware.org/isdl.php).
-# Output: installer\output\Circle-1.1.1-setup.exe
+# Output: installer\output\Circle-<version>-setup.exe
 
 param(
     [string]$Python = "python",
@@ -20,9 +20,13 @@ Write-Host "`n[1/4] Installing build dependencies" -ForegroundColor Cyan
 & $Python -m pip install --upgrade pip
 & $Python -m pip install -r requirements.txt pyinstaller
 
+$Version = (& $Python -c "import version; print(version.__version__)").Trim()
+Write-Host "Building Circle $Version"
+
 Write-Host "`n[2/4] Running the build checks" -ForegroundColor Cyan
 & $Python -m compileall -q . | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "compileall failed" }
+& $Python scripts\make_version_info.py
 
 Write-Host "`n[3/4] Freezing with PyInstaller" -ForegroundColor Cyan
 & $Python -m PyInstaller Circle.spec --noconfirm --clean
@@ -37,7 +41,7 @@ if (-not (Test-Path $IsccPath)) {
 if (-not $IsccPath -or -not (Test-Path $IsccPath)) {
     throw "ISCC.exe not found. Install Inno Setup 6 from https://jrsoftware.org/isdl.php"
 }
-& $IsccPath "installer\Circle.iss"
+& $IsccPath "/DAppVersion=$Version" "installer\Circle.iss"
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed" }
 
 Write-Host "`nDone." -ForegroundColor Green

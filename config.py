@@ -24,6 +24,11 @@ DEFAULT_CONFIG = {
     "autostart": True,
     "double_space_dot": False,
     "trigger_mode": "toggle",
+    "updates": {
+        "auto_check": True,
+        "check_interval_hours": 24,
+        "last_check": 0,
+    },
     "search": {
         "index_files": True,
         "max_results": 5,

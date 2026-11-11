@@ -30,6 +30,9 @@ jobs:
       - name: Check the sources compile
         run: python -m compileall -q .
 
+      - name: Stamp the version resource
+        run: python scripts/make_version_info.py
+
       - name: Freeze with PyInstaller
         run: python -m PyInstaller Circle.spec --noconfirm --clean
 
@@ -44,7 +47,9 @@ jobs:
       - name: Build the installer
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer\Circle.iss"
-          if (-not (Test-Path "installer\output\Circle-1.1.1-setup.exe")) { throw "installer missing" }
+          $installer = Get-ChildItem "installer\output\Circle-*-setup.exe" -ErrorAction SilentlyContinue
+          if (-not $installer) { throw "installer missing" }
+          Write-Host "Built $($installer.Name)"
         shell: pwsh
 
       - name: Upload the installer

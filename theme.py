@@ -163,6 +163,79 @@ def search_qss():
     """
 
 
+def dialog_qss():
+    """Small frameless panels: the update prompt."""
+    return _base_qss() + f"""
+    QFrame#panel {{
+        background-color: rgba({BG_RGB[0]}, {BG_RGB[1]}, {BG_RGB[2]}, 246);
+        border: 1px solid {HAIRLINE_STRONG};
+        border-radius: 16px;
+    }}
+    QLabel#title {{
+        color: {TEXT};
+    }}
+    QLabel#meta {{
+        color: {TEXT_DIM};
+    }}
+    QLabel#body {{
+        color: {TEXT_DIM};
+    }}
+    QTextBrowser {{
+        background: transparent;
+        border: none;
+        color: {TEXT_DIM};
+    }}
+    QProgressBar {{
+        background-color: {SURFACE};
+        border: none;
+        border-radius: 3px;
+        height: 6px;
+        text-align: center;
+        color: transparent;
+    }}
+    QProgressBar::chunk {{
+        background-color: {ACCENT};
+        border-radius: 3px;
+    }}
+    QPushButton {{
+        background-color: {SURFACE_HI};
+        border: 1px solid {HAIRLINE_STRONG};
+        border-radius: 8px;
+        padding: 8px 16px;
+        color: {TEXT};
+        font-weight: 600;
+    }}
+    QPushButton:hover {{
+        background-color: #2A2A36;
+    }}
+    QPushButton:pressed {{
+        background-color: #13131A;
+    }}
+    QPushButton#primary {{
+        background-color: {ACCENT};
+        color: {ACCENT_INK};
+        border: none;
+    }}
+    QPushButton#primary:hover {{
+        background-color: {ACCENT_HOVER};
+    }}
+    QPushButton#primary:disabled {{
+        background-color: {SURFACE_HI};
+        color: {TEXT_MUTE};
+    }}
+    QPushButton#link {{
+        background: transparent;
+        border: none;
+        color: {TEXT_DIM};
+        padding: 4px 0;
+        font-weight: 500;
+    }}
+    QPushButton#link:hover {{
+        color: {TEXT};
+    }}
+    """
+
+
 def settings_qss():
     return _base_qss() + f"""
     QMainWindow, QWidget#root {{

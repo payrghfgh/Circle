@@ -1,11 +1,13 @@
 ; Circle — Inno Setup 6 installer script
 ; Build with:  iscc installer\Circle.iss
-; Produces:    installer\output\Circle-1.1.1-setup.exe
+; Produces:    installer\output\Circle-<version>-setup.exe
 ;
 ; Per-user install by default (no admin prompt), Windows 10 and 11 x64.
 
 #define AppName "Circle"
-#define AppVersion "1.1.1"
+#ifndef AppVersion
+  #define AppVersion "1.2.0"
+#endif
 #define AppPublisher "Circle"
 #define AppExeName "Circle.exe"
 #define AppId "{{8C2B4F1A-4A6B-4E2F-9C1D-2B7E5A3F6D10}"

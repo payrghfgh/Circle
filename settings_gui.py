@@ -10,6 +10,7 @@ from PySide6.QtGui import QFont, QIcon, QColor, QPainter, QBrush, QPen
 import icons
 import platform_layer as platform
 import theme
+from version import __version__ as APP_VERSION
 from config import save_config, DEFAULT_CONFIG
 from action_executor import set_autostart, get_autostart
 
@@ -142,6 +143,7 @@ class WheelPreviewWidget(QWidget):
 class SettingsWindow(QMainWindow):
     config_saved = Signal(dict)
     test_wheel_requested = Signal()
+    check_updates_requested = Signal()
 
     def __init__(self, config_data):
         super().__init__()
@@ -170,7 +172,7 @@ class SettingsWindow(QMainWindow):
         title_label.setFont(theme.font(18, QFont.DemiBold, display=True))
         header_layout.addWidget(title_label)
 
-        subtitle_label = QLabel("wheel and search")
+        subtitle_label = QLabel(f"wheel and search  ·  v{APP_VERSION}")
         subtitle_label.setFont(theme.font(12))
         subtitle_label.setStyleSheet(f"color: {theme.TEXT_MUTE};")
         header_layout.addWidget(subtitle_label, 0, Qt.AlignBottom)
@@ -252,6 +254,19 @@ class SettingsWindow(QMainWindow):
             self.config_data.get("search", {}).get("index_files", True)
         )
         hotkey_layout.addRow("Search scope:", self.index_files_checkbox)
+
+        self.update_check_checkbox = QCheckBox("Check for updates automatically")
+        self.update_check_checkbox.setChecked(
+            self.config_data.get("updates", {}).get("auto_check", True)
+        )
+        hotkey_layout.addRow("Updates:", self.update_check_checkbox)
+
+        check_row = QHBoxLayout()
+        check_now_button = QPushButton("Check now")
+        check_now_button.clicked.connect(self.check_updates_requested.emit)
+        check_row.addWidget(check_now_button)
+        check_row.addStretch()
+        hotkey_layout.addRow("", check_row)
 
         self.autostart_checkbox = QCheckBox(
             "Start Circle at login" if platform.IS_MACOS else "Start Circle with Windows"
@@ -594,6 +609,7 @@ class SettingsWindow(QMainWindow):
             self.hotkey_input.setText(self.config_data.get("hotkey", "<ctrl>+<space>"))
             self.search_hotkey_input.setText(self.config_data.get("search_hotkey", "<alt>+<space>"))
             self.index_files_checkbox.setChecked(True)
+            self.update_check_checkbox.setChecked(True)
             self.slot_count_spin.setValue(len(self.slots_data))
             self.autostart_checkbox.setChecked(True)
             self.double_space_dot_checkbox.setChecked(False)
@@ -605,6 +621,10 @@ class SettingsWindow(QMainWindow):
         self.config_data["search_hotkey"] = (
             self.search_hotkey_input.text().strip() or "<alt>+<space>"
         )
+        updates = dict(self.config_data.get("updates") or {})
+        updates["auto_check"] = self.update_check_checkbox.isChecked()
+        self.config_data["updates"] = updates
+
         search_settings = dict(self.config_data.get("search") or {})
         search_settings["index_files"] = self.index_files_checkbox.isChecked()
         self.config_data["search"] = search_settings

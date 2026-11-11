@@ -6,6 +6,11 @@ as a directory bundle so it opens instantly instead of unpacking Qt on launch.
 """
 
 import os
+import sys
+
+_HERE = globals().get("SPECPATH") or os.getcwd()
+sys.path.insert(0, os.path.abspath(_HERE))
+from version import __version__ as APP_VERSION
 
 block_cipher = None
 
@@ -77,12 +82,12 @@ app = BUNDLE(
     name='Circle.app',
     icon='circle.icns',
     bundle_identifier='com.circle.launcher',
-    version='1.1.1',
+    version=APP_VERSION,
     info_plist={
         'CFBundleName': 'Circle',
         'CFBundleDisplayName': 'Circle',
-        'CFBundleShortVersionString': '1.1.1',
-        'CFBundleVersion': '1.1.1',
+        'CFBundleShortVersionString': APP_VERSION,
+        'CFBundleVersion': APP_VERSION,
         'CFBundleIconFile': 'circle.icns',
         'LSMinimumSystemVersion': '11.0',
         'NSHighResolutionCapable': True,

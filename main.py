@@ -1,11 +1,14 @@
 import sys
 
-from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtCore import QObject, QTimer, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 import platform_layer as platform
 import theme
+import updater
+from update_dialog import UpdateDialog, UpToDateDialog
+from version import __version__ as APP_VERSION
 from action_executor import register_special_windows, set_autostart
 from config import load_config, save_config
 from hotkey_manager import HotkeyManager
@@ -76,9 +79,17 @@ class CircleApp(QObject):
 
         self.settings_window.config_saved.connect(self.on_config_saved)
         self.settings_window.test_wheel_requested.connect(self.overlay.show_at_cursor)
+        self.settings_window.check_updates_requested.connect(
+            lambda: self.check_for_updates(manual=True)
+        )
 
         self._build_tray()
         self.hotkey_manager.start()
+
+        self._update_thread = None
+        self._update_dialog = None
+        self._up_to_date_dialog = None
+        QTimer.singleShot(4000, self._auto_check_updates)
 
         message = (
             f"Press {self._pretty(self.config_data.get('search_hotkey', '<alt>+<space>'))} "
@@ -94,7 +105,7 @@ class CircleApp(QObject):
 
     def _build_tray(self):
         self.tray_icon = QSystemTrayIcon(create_tray_icon(), parent=None)
-        self.tray_icon.setToolTip("Circle")
+        self.tray_icon.setToolTip(f"Circle {APP_VERSION}")
 
         menu = QMenu()
 
@@ -118,6 +129,9 @@ class CircleApp(QObject):
         self.double_space_action.setCheckable(True)
         self.double_space_action.setChecked(self.config_data.get("double_space_dot", False))
         self.double_space_action.triggered.connect(self.toggle_double_space_dot)
+
+        updates_action = menu.addAction("Check for updates…")
+        updates_action.triggered.connect(lambda: self.check_for_updates(manual=True))
 
         settings_action = menu.addAction("Settings…")
         settings_action.triggered.connect(self.show_settings)
@@ -191,6 +205,59 @@ class CircleApp(QObject):
             self.config_data.get("double_space_dot", False)
         )
         self.search_window.engine.start_file_index(force=True)
+
+    # --------------------------------------------------------------- updates --
+
+    def _auto_check_updates(self):
+        if not updater.platform_has_updates():
+            return
+        if not updater.should_auto_check(self.config_data):
+            return
+        self.check_for_updates(manual=False)
+
+    def check_for_updates(self, manual: bool = False):
+        if self._update_thread is not None and self._update_thread.isRunning():
+            return
+
+        updater.clear_downloads()
+        self._update_thread = updater.UpdateCheckThread(parent=self)
+        self._update_thread.found.connect(self._on_update_found)
+        self._update_thread.current.connect(
+            lambda v: self._on_update_current(v, manual)
+        )
+        self._update_thread.failed.connect(
+            lambda message: self._on_update_failed(message, manual)
+        )
+        self._update_thread.start()
+
+    def _record_check(self):
+        updater.mark_checked(self.config_data)
+        save_config(self.config_data)
+
+    def _on_update_found(self, info):
+        self._record_check()
+        if self._update_dialog is not None and self._update_dialog.isVisible():
+            return
+        self._update_dialog = UpdateDialog(info)
+        self._update_dialog.dismissed.connect(self._on_update_dialog_closed)
+        self._update_dialog.show_centered()
+
+    def _on_update_dialog_closed(self):
+        self._update_dialog = None
+
+    def _on_update_current(self, version, manual):
+        self._record_check()
+        if not manual:
+            return
+        self._up_to_date_dialog = UpToDateDialog(version)
+        self._up_to_date_dialog.show_centered()
+
+    def _on_update_failed(self, message, manual):
+        self._record_check()
+        print(f"[circle] update check: {message}")
+        if manual:
+            self.tray_icon.showMessage("Update check failed", message,
+                                       QSystemTrayIcon.Warning, 6000)
 
     def exit_app(self):
         self.hotkey_manager.stop()
