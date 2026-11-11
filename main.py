@@ -59,15 +59,9 @@ class CircleApp(QObject):
         if self.config_data.get("autostart", True):
             set_autostart(True)
 
-        # Windows that other parts of the app can summon by action type.
-        self.search_window = SearchWindow()
-        self.voice_typing_hud = VoiceTypingHUD()
-        self.window_switcher_window = WindowSwitcherWindow()
-        register_special_windows(self.search_window, self.voice_typing_hud,
-                                 self.window_switcher_window)
-
-        self.overlay = WheelOverlay(self.config_data)
-        self.settings_window = SettingsWindow(self.config_data)
+        # Windows are built the first time they are asked for. Nothing but the
+        # tray icon and the hotkey listener exists while Circle sits idle.
+        self._windows = {}
 
         self.hotkey_manager = HotkeyManager(
             self.config_data.get("hotkey", "<ctrl>+<space>"),
@@ -76,13 +70,6 @@ class CircleApp(QObject):
         )
         self.hotkey_manager.triggered.connect(self.toggle_or_show_overlay)
         self.hotkey_manager.search_triggered.connect(self.toggle_search)
-
-        self.settings_window.config_saved.connect(self.on_config_saved)
-        self.settings_window.test_wheel_requested.connect(self.overlay.show_at_cursor)
-        self.settings_window.check_updates_requested.connect(
-            lambda: self.check_for_updates(manual=True)
-        )
-        self.search_window.action_failed.connect(self._on_action_failed)
 
         self._build_tray()
         self.hotkey_manager.start()
@@ -116,13 +103,13 @@ class CircleApp(QObject):
         menu.addSeparator()
 
         switcher_action = menu.addAction("Switch windows")
-        switcher_action.triggered.connect(self.window_switcher_window.show_centered)
+        switcher_action.triggered.connect(lambda: self._switcher().show_centered())
 
         voice_action = menu.addAction("Voice typing")
-        voice_action.triggered.connect(self.voice_typing_hud.trigger_voice_dictation)
+        voice_action.triggered.connect(lambda: self._voice_hud().trigger_voice_dictation())
 
         wheel_action = menu.addAction("Radial wheel")
-        wheel_action.triggered.connect(self.overlay.show_at_cursor)
+        wheel_action.triggered.connect(lambda: self._overlay().show_at_cursor())
 
         menu.addSeparator()
 
@@ -146,6 +133,57 @@ class CircleApp(QObject):
         self.tray_icon.activated.connect(self.on_tray_icon_activated)
         self.tray_icon.show()
 
+    # ------------------------------------------------------- lazy windows --
+
+    def _register_special(self):
+        register_special_windows(self._windows.get("search"),
+                                 self._windows.get("voice"),
+                                 self._windows.get("switcher"))
+
+    def _search_window(self) -> SearchWindow:
+        window = self._windows.get("search")
+        if window is None:
+            window = SearchWindow()
+            window.action_failed.connect(self._on_action_failed)
+            self._windows["search"] = window
+            self._register_special()
+        return window
+
+    def _overlay(self) -> WheelOverlay:
+        window = self._windows.get("overlay")
+        if window is None:
+            window = WheelOverlay(self.config_data)
+            self._windows["overlay"] = window
+        return window
+
+    def _switcher(self) -> WindowSwitcherWindow:
+        window = self._windows.get("switcher")
+        if window is None:
+            window = WindowSwitcherWindow()
+            self._windows["switcher"] = window
+            self._register_special()
+        return window
+
+    def _voice_hud(self) -> VoiceTypingHUD:
+        window = self._windows.get("voice")
+        if window is None:
+            window = VoiceTypingHUD()
+            self._windows["voice"] = window
+            self._register_special()
+        return window
+
+    def _settings_window(self) -> SettingsWindow:
+        window = self._windows.get("settings")
+        if window is None:
+            window = SettingsWindow(self.config_data)
+            window.config_saved.connect(self.on_config_saved)
+            window.test_wheel_requested.connect(lambda: self._overlay().show_at_cursor())
+            window.check_updates_requested.connect(
+                lambda: self.check_for_updates(manual=True)
+            )
+            self._windows["settings"] = window
+        return window
+
     @staticmethod
     def _pretty(hotkey: str) -> str:
         text = hotkey.replace("<", "").replace(">", "")
@@ -154,19 +192,21 @@ class CircleApp(QObject):
     # -------------------------------------------------------------- actions --
 
     def show_search(self):
-        if self.search_window.isVisible():
-            self.search_window.dismiss()
+        window = self._search_window()
+        if window.isVisible():
+            window.dismiss()
         else:
-            self.search_window.show_centered()
+            window.show_centered()
 
     def toggle_search(self):
         self.show_search()
 
     def toggle_or_show_overlay(self):
-        if self.overlay.isVisible():
-            self.overlay.hide()
+        overlay = self._overlay()
+        if overlay.isVisible():
+            overlay.hide()
         else:
-            self.overlay.show_at_cursor()
+            overlay.show_at_cursor()
 
     def toggle_double_space_dot(self, checked):
         self.config_data["double_space_dot"] = checked
@@ -176,8 +216,9 @@ class CircleApp(QObject):
             checked,
             self.config_data.get("search_hotkey", "<alt>+<space>"),
         )
-        if hasattr(self.settings_window, "double_space_dot_checkbox"):
-            self.settings_window.double_space_dot_checkbox.setChecked(checked)
+        settings = self._windows.get("settings")
+        if settings is not None and hasattr(settings, "double_space_dot_checkbox"):
+            settings.double_space_dot_checkbox.setChecked(checked)
 
     def on_tray_icon_activated(self, reason):
         # On macOS a single click already opens the menu bar menu, so only a
@@ -190,9 +231,10 @@ class CircleApp(QObject):
             self.show_search()
 
     def show_settings(self):
-        self.settings_window.show()
-        self.settings_window.raise_()
-        self.settings_window.activateWindow()
+        window = self._settings_window()
+        window.show()
+        window.raise_()
+        window.activateWindow()
 
     def _on_action_failed(self, message: str):
         """A windowed build has no console, so failures go to a notification."""
@@ -202,7 +244,9 @@ class CircleApp(QObject):
 
     def on_config_saved(self, new_config):
         self.config_data = new_config
-        self.overlay.update_config(self.config_data)
+        overlay = self._windows.get("overlay")
+        if overlay is not None:
+            overlay.update_config(self.config_data)
         self.hotkey_manager.update_settings(
             self.config_data.get("hotkey", "<ctrl>+<space>"),
             self.config_data.get("double_space_dot", False),
@@ -211,7 +255,9 @@ class CircleApp(QObject):
         self.double_space_action.setChecked(
             self.config_data.get("double_space_dot", False)
         )
-        self.search_window.engine.start_file_index(force=True)
+        search = self._windows.get("search")
+        if search is not None:
+            search.engine.start_file_index(force=True)
 
     # --------------------------------------------------------------- updates --
 

@@ -170,6 +170,9 @@ class SearchWindow(QWidget):
         self.results: List[Result] = []
         self._suppress_hide = False
         self._has_results = False
+        self._indexes_started = False
+        self._indexer = None
+        self._app_refresh = None
 
         self.setWindowFlags(
             Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint | Qt.Tool |
@@ -179,7 +182,6 @@ class SearchWindow(QWidget):
         self.setWindowTitle("Search")
 
         self._build_ui()
-        self._load_indexes()
 
     # ---------------------------------------------------------------- build --
 
@@ -261,11 +263,24 @@ class SearchWindow(QWidget):
         self.setStyleSheet(theme.search_qss())
         self.setFixedWidth(PANEL_WIDTH + 56)
 
-    def _load_indexes(self):
+    def _start_indexes(self):
+        """First open only: read the app cache, and index files if stale.
+
+        Nothing here runs while Circle is idle — the panel has to be opened
+        first, so the work happens when someone is actually searching.
+        """
+        if self._indexes_started:
+            return
+        self._indexes_started = True
         self.engine.warm()
+
         self._indexer = self.engine.start_file_index()
         if self._indexer is not None:
             self._indexer.finished_index.connect(self._on_index_ready)
+
+        self._app_refresh = self.engine.refresh_apps_async()
+        if self._app_refresh is not None:
+            self._app_refresh.refreshed.connect(self._on_index_ready)
 
     def _on_index_ready(self, _count: int):
         if self.isVisible():
@@ -327,6 +342,7 @@ class SearchWindow(QWidget):
         y = geo.top() + int(geo.height() * 0.18)
         self.move(x, min(y, geo.bottom() - height - 20))
 
+        self._start_indexes()
         self.input.clear()
         self.refresh("")
         self.show()

@@ -45,11 +45,23 @@ _MONO_STACK = ["Cascadia Mono", "Consolas", "SF Mono", "Menlo",
 _EMOJI_STACK = ["Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji"]
 
 
+_FAMILY_CACHE = {}
+
+
 def _families(wanted):
-    """Keep only families that actually exist on this machine."""
+    """Keep only families that actually exist on this machine.
+
+    QFontDatabase.families() enumerates every installed font, which costs
+    ~150 ms the first time. Ask once per process, not once per font() call.
+    """
+    key = tuple(wanted)
+    cached = _FAMILY_CACHE.get(key)
+    if cached is not None:
+        return cached
     available = set(QFontDatabase.families())
-    kept = [f for f in wanted if f in available]
-    return kept or wanted[-1:]
+    kept = [f for f in wanted if f in available] or list(wanted[-1:])
+    _FAMILY_CACHE[key] = kept
+    return kept
 
 
 def emoji_font(size=15):

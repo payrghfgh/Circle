@@ -41,7 +41,9 @@ jobs:
       - name: Run the activation tests
         env:
           QT_QPA_PLATFORM: offscreen
-        run: python tests/test_activation.py
+        run: |
+          python tests/test_activation.py
+          python tests/test_startup.py
 
       - name: Generate the icon
         run: python scripts/make_icns.py

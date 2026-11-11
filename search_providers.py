@@ -11,6 +11,7 @@ settings pages, and the web as a fallback that is always there.
 from __future__ import annotations
 
 import ast
+import heapq
 import json
 import math
 import os
@@ -83,6 +84,34 @@ def reveal_path(path: str) -> bool:
 
 def open_url(url: str) -> bool:
     return platform.open_url(url)
+
+
+def score_lower(q: str, t: str) -> float:
+    """score_text() for text already lowercased and stripped.
+
+    The file index stores lowercase names, and lowercasing 25,000 strings on
+    every keystroke was most of the cost of a search.
+    """
+    if not q or not t:
+        return 0.0
+    if t.startswith(q):
+        return 100.0 - min(len(t), 60) * 0.15
+    idx = t.find(q)
+    if idx >= 0:
+        if idx > 0 and t[idx - 1] in " -_./\\()[]":
+            return 90.0 - min(idx, 40) * 0.2
+        return 72.0 - min(idx, 40) * 0.25
+    words = [w for w in re.split(r"[\s\-_./\\]+", t) if w]
+    initials = "".join(w[0] for w in words)
+    if len(q) >= 2 and initials.startswith(q):
+        return 64.0
+    pos = 0
+    for ch in q:
+        pos = t.find(ch, pos)
+        if pos < 0:
+            return 0.0
+        pos += 1
+    return max(20.0, 40.0 - (len(t) - len(q)) * 0.08)
 
 
 def score_text(query: str, text: str) -> float:
@@ -161,19 +190,67 @@ class UsageStore:
 # --------------------------------------------------------------- app index ---
 
 class AppIndex:
-    """Installed applications, from Start Menu shortcuts and Store apps."""
+    """Installed applications, from Start Menu shortcuts and Store apps.
+
+    The list is cached on disk. Opening Search reads that cache (a few ms)
+    instead of walking the Start Menu; the walk only happens when there is no
+    cache, or when a background refresh is due.
+    """
+
+    CACHE_VERSION = 1
+    MAX_AGE_DAYS = 7
 
     def __init__(self):
         self.apps: List[dict] = []
         self.loaded = False
+        self.built_at = 0.0
         self._icon_provider = QFileIconProvider()
+        self.cache_path = os.path.join(config.data_dir(), "apps.json")
 
     # -- discovery -----------------------------------------------------------
 
     def load(self):
+        """Load the cached list; scan only when there is nothing usable."""
         if self.loaded:
             return
         self.loaded = True
+        if self._load_cache():
+            return
+        self.rebuild()
+
+    def _load_cache(self) -> bool:
+        try:
+            with open(self.cache_path, "r", encoding="utf-8") as fh:
+                payload = json.load(fh)
+            if payload.get("version") != self.CACHE_VERSION:
+                return False
+            apps = payload.get("apps") or []
+            if not apps:
+                return False
+        except Exception:
+            return False
+        self.apps = apps
+        self.built_at = float(payload.get("built_at") or 0)
+        return True
+
+    def _save_cache(self):
+        try:
+            payload = {
+                "version": self.CACHE_VERSION,
+                "built_at": self.built_at,
+                "apps": [{k: v for k, v in app.items() if not k.startswith("_")}
+                         for app in self.apps],
+            }
+            with open(self.cache_path, "w", encoding="utf-8") as fh:
+                json.dump(payload, fh)
+        except Exception as exc:
+            print(f"[circle] could not cache the app list: {exc}")
+
+    def is_stale(self, days: float = MAX_AGE_DAYS) -> bool:
+        return (time.time() - self.built_at) > days * 86400
+
+    def rebuild(self):
+        """Walk the Start Menu (and Store apps) and rewrite the cache."""
         apps: Dict[str, dict] = {}
 
         if IS_WINDOWS:
@@ -187,7 +264,8 @@ class AppIndex:
             self._scan_desktop_files(apps)
 
         self.apps = sorted(apps.values(), key=lambda a: a["name"].lower())
-        self._prewarm_icons()
+        self.built_at = time.time()
+        self._save_cache()
 
     @staticmethod
     def _start_menu_dirs() -> List[str]:
@@ -352,11 +430,6 @@ class AppIndex:
                     "type": "desktop",
                 }
 
-    def _prewarm_icons(self):
-        """Resolve a few dozen icons now so the first search feels instant."""
-        for app in self.apps[:60]:
-            self.icon_for(app)
-
     def icon_for(self, app: dict) -> QIcon:
         cached = app.get("_icon")
         if cached is not None:
@@ -429,9 +502,17 @@ class AppIndex:
 # -------------------------------------------------------------- file index ---
 
 class FileIndex:
-    """A bounded index of the folders people actually look in."""
+    """A bounded index of the folders people actually look in.
 
-    MAX_ENTRIES = 60000
+    Smaller and shallower than it used to be: 25k entries within five folder
+    levels. That keeps the walk to a few seconds, the cache to ~2 MB, and the
+    per-keystroke scan in single-digit milliseconds.
+    """
+
+    CACHE_VERSION = 2
+    MAX_ENTRIES = 25000
+    MAX_DEPTH = 5
+    BUILD_SECONDS = 20
     SKIP_DIRS = {
         "node_modules", ".git", ".svn", "__pycache__", "appdata", "windows",
         "program files", "program files (x86)", "programdata", "$recycle.bin",
@@ -467,8 +548,11 @@ class FileIndex:
         try:
             with open(self.cache_path, "r", encoding="utf-8") as fh:
                 payload = json.load(fh)
+            if payload.get("version") != self.CACHE_VERSION:
+                return False
             self.entries = payload.get("entries", [])
             self.built_at = payload.get("built_at", 0)
+            self._normalise()
             return bool(self.entries)
         except Exception:
             return False
@@ -476,20 +560,25 @@ class FileIndex:
     def save_cache(self):
         try:
             with open(self.cache_path, "w", encoding="utf-8") as fh:
-                json.dump({"built_at": self.built_at, "entries": self.entries}, fh)
+                json.dump({"version": self.CACHE_VERSION,
+                           "built_at": self.built_at,
+                           "entries": self.entries}, fh)
         except Exception as exc:
             print(f"[circle] could not save file index: {exc}")
 
-    def build(self, roots: Optional[List[str]] = None, max_age_days: int = 2) -> int:
+    def build(self, roots: Optional[List[str]] = None) -> int:
         self.building = True
         entries: List[dict] = []
         roots = roots or self.default_roots()
-        deadline = time.time() + 45
+        deadline = time.time() + self.BUILD_SECONDS
         try:
             for root in roots:
+                base_depth = root.rstrip(os.sep).count(os.sep)
                 for dirpath, dirnames, filenames in os.walk(root):
                     if len(entries) >= self.MAX_ENTRIES or time.time() > deadline:
                         break
+                    if dirpath.count(os.sep) - base_depth >= self.MAX_DEPTH:
+                        dirnames[:] = []
                     dirnames[:] = [
                         d for d in dirnames
                         if d.lower() not in self.SKIP_DIRS and not d.startswith(".")
@@ -498,21 +587,34 @@ class FileIndex:
                     for name in filenames:
                         if name.startswith("."):
                             continue
-                        full = os.path.join(dirpath, name)
-                        entries.append({"n": name, "p": full, "d": 0, "r": rel_dir})
+                        # 'nl' is the lowercase name, precomputed so a keystroke
+                        # never lowercases 25,000 strings.
+                        entries.append({"n": name, "nl": name.lower(),
+                                        "p": os.path.join(dirpath, name),
+                                        "d": 0, "r": rel_dir})
                         if len(entries) >= self.MAX_ENTRIES:
                             break
                     for name in dirnames:
-                        full = os.path.join(dirpath, name)
-                        entries.append({"n": name, "p": full, "d": 1, "r": rel_dir})
+                        entries.append({"n": name, "nl": name.lower(),
+                                        "p": os.path.join(dirpath, name),
+                                        "d": 1, "r": rel_dir})
             self.entries = entries
             self.built_at = time.time()
+            self._normalise()
             self.save_cache()
         finally:
             self.building = False
         return len(self.entries)
 
-    def is_stale(self, max_age_days: float = 2.0) -> bool:
+    def _normalise(self):
+        """Fill in the lowercase fields older caches may not have."""
+        for entry in self.entries:
+            if "nl" not in entry:
+                entry["nl"] = entry["n"].lower()
+            if "rl" not in entry:
+                entry["rl"] = entry["r"].lower()
+
+    def is_stale(self, max_age_days: float = 7.0) -> bool:
         return (time.time() - self.built_at) > max_age_days * 86400
 
     # -- query ---------------------------------------------------------------
@@ -541,20 +643,23 @@ class FileIndex:
             is_dir = os.path.isdir(path)
             results.append(self._make_result(path, os.path.basename(path) or path, is_dir, 999.0))
 
-        scored = []
-        for entry in self.entries:
-            name = entry["n"].lower()
-            if q in name:
-                score = score_text(q, name) + (6 if entry["d"] else 0)
-            elif q in entry["r"].lower():
-                score = 26.0
-            else:
-                continue
-            if score > 0:
-                scored.append((score, entry))
-        scored.sort(key=lambda pair: -pair[0])
+        # Entries normally arrive normalised; this covers anything injected
+        # straight into the list (tests, a future importer).
+        if self.entries and "nl" not in self.entries[0]:
+            self._normalise()
 
-        for score, entry in scored[:limit]:
+        def candidates():
+            for entry in self.entries:
+                name = entry["nl"]
+                if q in name:
+                    yield (score_lower(q, name) + (6 if entry["d"] else 0), entry)
+                elif q in entry["rl"]:
+                    yield (26.0, entry)
+
+        # Only the best few are ever shown, so never sort the whole match set.
+        best = heapq.nlargest(limit, candidates(), key=lambda pair: pair[0])
+
+        for score, entry in best:
             results.append(self._make_result(entry["p"], entry["n"], bool(entry["d"]), score))
         return results
 
@@ -577,6 +682,24 @@ class FileIndex:
         if not is_dir:
             r._icon = self.icon_for(path, is_dir)
         return r
+
+
+class AppRefreshThread(QThread):
+    """Re-scans the Start Menu off the UI thread, once the cache is old."""
+
+    refreshed = Signal(int)
+
+    def __init__(self, index: AppIndex, parent=None):
+        super().__init__(parent)
+        self.index = index
+
+    def run(self):
+        try:
+            self.index.rebuild()
+        except Exception as exc:
+            print(f"[circle] app refresh failed: {exc}")
+            return
+        self.refreshed.emit(len(self.index.apps))
 
 
 class FileIndexer(QThread):
@@ -858,6 +981,9 @@ def focus_window(handle):
 class SearchEngine:
     """Owns the indexes and turns a query into a grouped, ranked list."""
 
+    WINDOW_TTL = 5.0
+    QUERY_CACHE = 24
+
     def __init__(self):
         self.usage = UsageStore()
         self.apps = AppIndex()
@@ -865,15 +991,22 @@ class SearchEngine:
         self.actions = build_actions()
         self._windows_cache: List[dict] = []
         self._windows_at = 0.0
+        self._results: Dict[tuple, List[Result]] = {}
 
     # -- lifecycle -----------------------------------------------------------
 
     def warm(self):
+        """Called the first time the panel opens, never at startup.
+
+        Reading the app cache costs a few milliseconds; walking the Start Menu
+        costs a few hundred, so that only happens when the cache is missing.
+        """
         self.apps.load()
-        if self.files.load_cache() is None:
-            pass
+        if not self.files.entries:
+            self.files.load_cache()
 
     def start_file_index(self, force=False) -> Optional[FileIndexer]:
+        """Index in the background — only while the panel is open."""
         if self.files.building:
             return None
         if not force and self.files.entries and not self.files.is_stale():
@@ -882,21 +1015,37 @@ class SearchEngine:
         thread.start()
         return thread
 
+    def refresh_apps_async(self) -> Optional["AppRefreshThread"]:
+        """Re-scan the Start Menu in the background when the cache has aged."""
+        if not self.apps.loaded or not self.apps.is_stale():
+            return None
+        thread = AppRefreshThread(self.apps)
+        thread.start()
+        return thread
+
     # -- query ---------------------------------------------------------------
 
     def windows(self) -> List[dict]:
         now = time.time()
-        if now - self._windows_at > 3.0:
+        if now - self._windows_at > self.WINDOW_TTL:
             self._windows_cache = list_open_windows()
             self._windows_at = now
         return self._windows_cache
 
     def search(self, query: str, limit_per_group: int = 5, max_groups: int = 5) -> List[Result]:
         query = query.strip()
-        results: List[Result] = []
 
         if not query:
             return self.suggestions(limit_per_group)
+
+        # Backspacing walks back through queries just typed; serving them from
+        # memory keeps every keystroke at the same cost.
+        cache_key = (query, limit_per_group, max_groups)
+        cached = self._results.get(cache_key)
+        if cached is not None:
+            return cached
+
+        results: List[Result] = []
 
         calc = try_calculate(query)
         if calc:
@@ -925,7 +1074,11 @@ class SearchEngine:
 
         results.extend(web_results(query, config.get_web_engine()))
 
-        return self._group(results, limit_per_group, max_groups)
+        final = self._group(results, limit_per_group, max_groups)
+        if len(self._results) >= self.QUERY_CACHE:
+            self._results.clear()
+        self._results[cache_key] = final
+        return final
 
     def _group(self, results: List[Result], per_group: int, max_groups: int) -> List[Result]:
         buckets: Dict[str, List[Result]] = {}
@@ -977,6 +1130,8 @@ class SearchEngine:
 
     def record_use(self, result: Result):
         self.usage.bump(result.key)
+        # Ranking depends on usage, so yesterday's order is no longer right.
+        self._results.clear()
 
 
 def _group_rank(name: str) -> int:

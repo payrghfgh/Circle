@@ -33,7 +33,9 @@ jobs:
       - name: Run the activation tests
         env:
           QT_QPA_PLATFORM: offscreen
-        run: python tests/test_activation.py
+        run: |
+          python tests/test_activation.py
+          python tests/test_startup.py
 
       - name: Stamp the version resource
         run: python scripts/make_version_info.py

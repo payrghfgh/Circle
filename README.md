@@ -10,11 +10,11 @@ Runs on **Windows 10/11 (64-bit)** and **macOS 11+ (Apple Silicon and Intel)**.
 
 ## Install
 
-**Windows** — download `Circle-1.2.3-setup.exe` from [Releases](../../releases) and
+**Windows** — download `Circle-1.3.0-setup.exe` from [Releases](../../releases) and
 run it. Per-user install, no admin prompt, into `%LOCALAPPDATA%\Programs\Circle`.
 
-**macOS** — download `Circle-1.2.3-arm64.dmg` (Apple Silicon) or
-`Circle-1.2.3-x64.dmg` (Intel), open it, and drag Circle to Applications.
+**macOS** — download `Circle-1.3.0-arm64.dmg` (Apple Silicon) or
+`Circle-1.3.0-x64.dmg` (Intel), open it, and drag Circle to Applications.
 
 The macOS build is ad-hoc signed, not notarised, so the first launch needs one of:
 
@@ -33,6 +33,24 @@ Two system permissions make the whole app work:
 | **Screen Recording** | reading window titles so Search can find them | System Settings → Privacy & Security → Screen Recording |
 
 Without Screen Recording, Search still lists windows by app name — just not by title.
+
+## Speed, and what runs when
+
+Circle is built to sit idle and cost nothing, then answer instantly.
+
+| Moment | What happens |
+| --- | --- |
+| Launch | Tray icon and hotkey listener only — no windows, no scanning, no threads |
+| First `Alt+Space` | Search panel built (~12 ms), app list read from a cache on disk (~3 ms) |
+| Each keystroke | One pass over the file index — ~8 ms for 25,000 entries, instant for a query you just typed |
+| Settings / wheel / switcher | Built the first time you open them, never before |
+| Idle | Nothing. No timers, no polling, no background threads |
+| Once a day | One HTTPS request to check for an update |
+
+Indexes refresh in the background only while the panel is open, at most weekly,
+so a stale index never costs you anything at boot. The file index covers 25,000
+entries within five folder levels; both numbers are constants in
+`search_providers.py` if you want a wider net.
 
 ## Updates
 
