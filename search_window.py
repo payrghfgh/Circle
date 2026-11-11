@@ -246,7 +246,7 @@ class SearchWindow(QWidget):
         footer_row = QHBoxLayout(self.footer)
         footer_row.setContentsMargins(22, 0, 22, 0)
 
-        self.hint_label = QLabel("↑ ↓  navigate     ↵  open     shift ↵  reveal     esc  close")
+        self.hint_label = QLabel(platform.footer_hints())
         self.hint_label.setObjectName("footer")
         self.hint_label.setFont(theme.font(11))
         footer_row.addWidget(self.hint_label)
@@ -366,6 +366,10 @@ class SearchWindow(QWidget):
         self.activateWindow()
         if platform.IS_MACOS:
             _activate_app()
+        elif platform.IS_WINDOWS:
+            # Without this the panel opens but the previous app keeps focus, so
+            # typing goes to the wrong window.
+            platform.focus_own_window(int(self.winId()))
         self.input.setFocus(Qt.ShortcutFocusReason)
 
     def dismiss(self):

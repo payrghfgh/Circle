@@ -197,19 +197,27 @@ class SettingsWindow(QMainWindow):
         hotkey_layout.setContentsMargins(10, 14, 10, 10)
 
         self.hotkey_input = QLineEdit(self.config_data.get("hotkey", "<ctrl>+<space>"))
-        self.hotkey_input.setPlaceholderText("e.g. <ctrl>+<space>, <alt>+<space>, middle_click")
+        self.hotkey_input.setPlaceholderText(
+            f"e.g. {platform.format_shortcut(platform.shortcut_presets()[0][1])}, middle_click"
+        )
         hotkey_layout.addRow("Shortcut:", self.hotkey_input)
 
-        preset_layout = QHBoxLayout()
-        btn_ctrl_space = QPushButton("Ctrl+Space")
-        btn_ctrl_space.clicked.connect(lambda: self.hotkey_input.setText("<ctrl>+<space>"))
-        btn_alt_space = QPushButton("Alt+Space")
-        btn_alt_space.clicked.connect(lambda: self.hotkey_input.setText("<alt>+<space>"))
-        btn_mid_click = QPushButton("Middle Click")
-        btn_mid_click.clicked.connect(lambda: self.hotkey_input.setText("middle_click"))
-        preset_layout.addWidget(btn_ctrl_space)
-        preset_layout.addWidget(btn_alt_space)
-        preset_layout.addWidget(btn_mid_click)
+        self.hotkey_preview = QLabel()
+        self.hotkey_preview.setFont(theme.font(12, QFont.DemiBold))
+        self.hotkey_preview.setStyleSheet(f"color: {theme.ACCENT};")
+        hotkey_layout.addRow("", self.hotkey_preview)
+        self._update_hotkey_preview()
+        self.hotkey_input.textChanged.connect(self._update_hotkey_preview)
+
+        preset_layout = QGridLayout()
+        preset_layout.setSpacing(6)
+        presets = list(platform.shortcut_presets()) + [("Middle click", "middle_click")]
+        for position, (label, value) in enumerate(presets):
+            button = QPushButton(label)
+            button.clicked.connect(
+                lambda _checked=False, v=value: self.hotkey_input.setText(v)
+            )
+            preset_layout.addWidget(button, position // 2, position % 2)
         hotkey_layout.addRow("Presets:", preset_layout)
 
         self.slot_count_spin = QSpinBox()
@@ -235,18 +243,26 @@ class SettingsWindow(QMainWindow):
         self.search_hotkey_input = QLineEdit(
             self.config_data.get("search_hotkey", "<alt>+<space>")
         )
-        self.search_hotkey_input.setPlaceholderText("e.g. <alt>+<space>")
+        self.search_hotkey_input.setPlaceholderText(
+            f"e.g. {platform.format_shortcut('<alt>+<space>')}"
+        )
         hotkey_layout.addRow("Search shortcut:", self.search_hotkey_input)
 
+        self.search_preview = QLabel()
+        self.search_preview.setFont(theme.font(12, QFont.DemiBold))
+        self.search_preview.setStyleSheet(f"color: {theme.ACCENT};")
+        hotkey_layout.addRow("", self.search_preview)
+        self._update_search_preview()
+        self.search_hotkey_input.textChanged.connect(self._update_search_preview)
+
         search_presets = QHBoxLayout()
-        for label, value in (("Alt+Space", "<alt>+<space>"),
-                             ("Ctrl+Space", "<ctrl>+<space>"),
-                             ("Ctrl+K", "<ctrl>+k")):
+        for label, value in platform.shortcut_presets():
             button = QPushButton(label)
             button.clicked.connect(
                 lambda _checked=False, v=value: self.search_hotkey_input.setText(v)
             )
             search_presets.addWidget(button)
+        search_presets.addStretch()
         hotkey_layout.addRow("Search presets:", search_presets)
 
         self.index_files_checkbox = QCheckBox("Index my files for Search")
@@ -278,7 +294,9 @@ class SettingsWindow(QMainWindow):
         self.double_space_dot_checkbox = QCheckBox("Double spacebar types a period")
         is_ds_dot = self.config_data.get("double_space_dot", False)
         self.double_space_dot_checkbox.setChecked(is_ds_dot)
-        hotkey_layout.addRow("Mac Typing:", self.double_space_dot_checkbox)
+        # macOS does this itself; the toggle only exists for Windows.
+        if not platform.IS_MACOS:
+            hotkey_layout.addRow("Mac typing:", self.double_space_dot_checkbox)
 
         left_col.addWidget(hotkey_box)
 
@@ -361,6 +379,16 @@ class SettingsWindow(QMainWindow):
         bottom_layout.addWidget(save_btn)
 
         main_layout.addLayout(bottom_layout)
+
+    def _update_hotkey_preview(self):
+        self.hotkey_preview.setText(
+            platform.format_shortcut(self.hotkey_input.text())
+        )
+
+    def _update_search_preview(self):
+        self.search_preview.setText(
+            platform.format_shortcut(self.search_hotkey_input.text())
+        )
 
     def apply_action_preset(self, preset_dict):
         curr_idx = self.tabs.currentIndex()

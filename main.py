@@ -97,8 +97,12 @@ class CircleApp(QObject):
 
         menu = QMenu()
 
-        search_action = menu.addAction("Search…")
-        search_action.setShortcutVisibleInContextMenu(True)
+        # A tab in the label renders right-aligned in a native menu, which is
+        # how macOS and Windows both show shortcuts.
+        search_shortcut = platform.format_shortcut(
+            self.config_data.get("search_hotkey", "<alt>+<space>")
+        )
+        search_action = menu.addAction(f"Search…\t{search_shortcut}")
         search_action.triggered.connect(self.show_search)
         menu.addSeparator()
 
@@ -108,7 +112,10 @@ class CircleApp(QObject):
         voice_action = menu.addAction("Voice typing")
         voice_action.triggered.connect(lambda: self._voice_hud().trigger_voice_dictation())
 
-        wheel_action = menu.addAction("Radial wheel")
+        wheel_shortcut = platform.format_shortcut(
+            self.config_data.get("hotkey", "<ctrl>+<space>")
+        )
+        wheel_action = menu.addAction(f"Radial wheel\t{wheel_shortcut}")
         wheel_action.triggered.connect(lambda: self._overlay().show_at_cursor())
 
         menu.addSeparator()
@@ -186,8 +193,7 @@ class CircleApp(QObject):
 
     @staticmethod
     def _pretty(hotkey: str) -> str:
-        text = hotkey.replace("<", "").replace(">", "")
-        return text.replace("+", " + ").title()
+        return platform.format_shortcut(hotkey)
 
     # -------------------------------------------------------------- actions --
 

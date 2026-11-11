@@ -50,9 +50,7 @@ codesign --force --deep --sign - "dist/Circle.app"
 codesign --verify --deep --strict --verbose=2 "dist/Circle.app" || true
 
 DMG="dist/Circle-${VERSION}-${ARCH_LABEL}.dmg"
-rm -f "$DMG"
-hdiutil create -volname "Circle" -srcfolder "dist/Circle.app" \
-    -ov -format UDZO "$DMG"
+./scripts/make_dmg.sh "dist/Circle.app" "$DMG"
 
 echo
 echo "Done."

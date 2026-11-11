@@ -10,11 +10,12 @@ Runs on **Windows 10/11 (64-bit)** and **macOS 11+ (Apple Silicon and Intel)**.
 
 ## Install
 
-**Windows** — download `Circle-1.3.1-setup.exe` from [Releases](../../releases) and
+**Windows** — download `Circle-1.4.0-setup.exe` from [Releases](../../releases) and
 run it. Per-user install, no admin prompt, into `%LOCALAPPDATA%\Programs\Circle`.
 
-**macOS** — download `Circle-1.3.1-arm64.dmg` (Apple Silicon) or
-`Circle-1.3.1-x64.dmg` (Intel), open it, and drag Circle to Applications.
+**macOS** — download `Circle-1.4.0-arm64.dmg` (Apple Silicon) or
+`Circle-1.4.0-x64.dmg` (Intel), open it, and drag Circle onto the Applications
+folder in the window that appears — the disk image is laid out for exactly that.
 
 The macOS build is ad-hoc signed, not notarised, so the first launch needs one of:
 
@@ -72,17 +73,21 @@ tells you to `git pull` instead.
 
 ## Shortcuts
 
-| Key | Does |
-| --- | --- |
-| `Alt + Space` | Open Search (macOS: `Option + Space`) |
-| `Ctrl + Space` | Open the wheel — macOS default is `Ctrl + Option + Space`, since `Ctrl + Space` switches input sources |
-| `↑` `↓` | Move through results |
-| `Enter` | Run the selected result |
-| `Shift + Enter` | Reveal it instead of opening |
-| `Ctrl + 1…9` | Jump to the nth result |
-| `Esc` | Close |
+Shortcuts are written the way your platform writes them — `⌥Space` on macOS,
+`Alt + Space` on Windows — in the panel, the menu and the settings window.
 
-Both shortcuts are editable in Settings. Either can be a middle click.
+| macOS | Windows | Does |
+| --- | --- | --- |
+| `⌥Space` | `Alt + Space` | Open Search |
+| `⌃⌥Space` | `Ctrl + Alt + Space` | Open the wheel (macOS default: `⌃Space` switches input sources, `⌘Space` is Spotlight) |
+| `↑` `↓` | `↑` `↓` | Move through results |
+| `↵` | `Enter` | Run the selected result |
+| `⇧↵` | `Shift + Enter` | Reveal it instead of opening |
+| `⌃1…9` | `Ctrl + 1…9` | Jump to the nth result |
+| `esc` | `Esc` | Close |
+
+Both shortcuts are editable in Settings, which previews them in your platform's
+own notation as you type. Either can be a middle click.
 
 ## What Search finds
 

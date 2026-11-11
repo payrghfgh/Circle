@@ -204,19 +204,30 @@ class AppIndex:
         self.apps: List[dict] = []
         self.loaded = False
         self.built_at = 0.0
+        self.store_pending = False
         self._icon_provider = QFileIconProvider()
         self.cache_path = os.path.join(config.data_dir(), "apps.json")
 
     # -- discovery -----------------------------------------------------------
 
     def load(self):
-        """Load the cached list; scan only when there is nothing usable."""
+        """Load the cached list; scan only when there is nothing usable.
+
+        On Windows the Store app list comes from a PowerShell call that can
+        take seconds on a cold machine. It is never fetched on the first open:
+        Start Menu shortcuts appear immediately and Store apps join them when
+        the background scan finishes.
+        """
         if self.loaded:
             return
         self.loaded = True
         if self._load_cache():
+            self.store_pending = IS_WINDOWS and not any(
+                a.get("type") == "uwp" for a in self.apps
+            )
             return
-        self.rebuild()
+        self.rebuild(include_store=False)
+        self.store_pending = IS_WINDOWS
 
     def _load_cache(self) -> bool:
         try:
@@ -249,15 +260,16 @@ class AppIndex:
     def is_stale(self, days: float = MAX_AGE_DAYS) -> bool:
         return (time.time() - self.built_at) > days * 86400
 
-    def rebuild(self):
+    def rebuild(self, include_store: bool = True):
         """Walk the Start Menu (and Store apps) and rewrite the cache."""
         apps: Dict[str, dict] = {}
 
         if IS_WINDOWS:
             for directory in self._start_menu_dirs():
                 self._scan_shortcuts(directory, apps)
-            for entry in self._store_apps():
-                apps.setdefault(entry["name"].lower(), entry)
+            if include_store:
+                for entry in self._store_apps():
+                    apps.setdefault(entry["name"].lower(), entry)
         elif IS_MACOS:
             self._scan_app_bundles(apps)
         else:
@@ -265,6 +277,7 @@ class AppIndex:
 
         self.apps = sorted(apps.values(), key=lambda a: a["name"].lower())
         self.built_at = time.time()
+        self.store_pending = IS_WINDOWS and not include_store
         self._save_cache()
 
     @staticmethod
@@ -1025,9 +1038,11 @@ class SearchEngine:
         thread.start()
         return thread
 
-    def refresh_apps_async(self) -> Optional["AppRefreshThread"]:
+    def refresh_apps_async(self, force: bool = False) -> Optional["AppRefreshThread"]:
         """Re-scan the Start Menu in the background when the cache has aged."""
-        if not self.apps.loaded or not self.apps.is_stale():
+        if not self.apps.loaded:
+            return None
+        if not force and not self.apps.store_pending and not self.apps.is_stale():
             return None
         thread = AppRefreshThread(self.apps)
         thread.start()

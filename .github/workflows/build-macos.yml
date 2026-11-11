@@ -42,6 +42,7 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
+          python tests/test_shortcuts.py
           python tests/test_activation.py
           python tests/test_startup.py
 
@@ -61,8 +62,8 @@ jobs:
           VERSION="$(python -c 'import version; print(version.__version__)')"
           codesign --force --deep --sign - dist/Circle.app
           codesign --verify --deep --strict --verbose=2 dist/Circle.app || true
-          hdiutil create -volname "Circle" -srcfolder dist/Circle.app \
-            -ov -format UDZO "dist/Circle-${VERSION}-${{ matrix.arch }}.dmg"
+          chmod +x scripts/make_dmg.sh
+          ./scripts/make_dmg.sh "dist/Circle.app" "dist/Circle-${VERSION}-${{ matrix.arch }}.dmg"
           ls -lh dist/*.dmg
 
       - name: Upload the dmg

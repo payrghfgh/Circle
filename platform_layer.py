@@ -371,8 +371,20 @@ def _mac_list_windows() -> List[dict]:
         if key in seen:
             continue
         seen.add(key)
-        windows.append({"handle": int(pid), "title": title, "app": owner})
+        windows.append({"handle": int(pid), "title": title, "app": owner,
+                        "proc_path": _mac_bundle_path(pid)})
     return windows
+
+
+def _mac_bundle_path(pid) -> str:
+    """The .app the process belongs to, for its icon."""
+    try:
+        from AppKit import NSRunningApplication
+        app = NSRunningApplication.runningApplicationWithProcessIdentifier_(int(pid))
+        url = app.bundleURL() if app is not None else None
+        return url.path() if url is not None else ""
+    except Exception:
+        return ""
 
 
 def _mac_activate(pid):
@@ -390,28 +402,108 @@ def _mac_activate(pid):
               f'(first process whose unix id is {int(pid)}) to true')
 
 
+def _win32():
+    """Configure the Win32 prototypes once.
+
+    Without argtypes ctypes assumes c_int for every argument and return value,
+    which truncates 64-bit HWNDs and HANDLEs. That silently broke window
+    activation and leaked a process handle on every enumeration.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+    user32.EnumWindows.argtypes = [ctypes.WINFUNCTYPE(
+        wintypes.BOOL, wintypes.HWND, wintypes.LPARAM), wintypes.LPARAM]
+    user32.EnumWindows.restype = wintypes.BOOL
+
+    user32.IsWindowVisible.argtypes = [wintypes.HWND]
+    user32.IsWindowVisible.restype = wintypes.BOOL
+
+    user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
+    user32.GetWindowTextLengthW.restype = ctypes.c_int
+
+    user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+    user32.GetWindowTextW.restype = ctypes.c_int
+
+    user32.GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
+    user32.GetWindowLongW.restype = ctypes.c_long
+
+    user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND,
+                                                ctypes.POINTER(wintypes.DWORD)]
+    user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+
+    user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+    user32.ShowWindow.restype = wintypes.BOOL
+    user32.SetForegroundWindow.argtypes = [wintypes.HWND]
+    user32.SetForegroundWindow.restype = wintypes.BOOL
+    user32.BringWindowToTop.argtypes = [wintypes.HWND]
+    user32.BringWindowToTop.restype = wintypes.BOOL
+    user32.IsIconic.argtypes = [wintypes.HWND]
+    user32.IsIconic.restype = wintypes.BOOL
+
+    user32.keybd_event.argtypes = [wintypes.BYTE, wintypes.BYTE, wintypes.DWORD,
+                                   ctypes.POINTER(wintypes.ULONG)]
+    user32.keybd_event.restype = None
+    user32.AllowSetForegroundWindow.argtypes = [wintypes.DWORD]
+    user32.AllowSetForegroundWindow.restype = wintypes.BOOL
+
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.QueryFullProcessImageNameW.argtypes = [
+        wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR,
+        ctypes.POINTER(wintypes.DWORD)]
+    kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+
+    return user32, kernel32
+
+
+_WIN32 = None
+
+
+def _win32_cached():
+    global _WIN32
+    if _WIN32 is None:
+        _WIN32 = _win32()
+    return _WIN32
+
+
+_WIN_SKIP_TITLES = {"Program Manager", "Windows Input Experience", "Task View",
+                    "Default IME", "MSCTFIME UI", "Circle", "Search"}
+
+
+def _win_process_path(kernel32, pid: int) -> str:
+    import ctypes
+    from ctypes import wintypes
+
+    handle = kernel32.OpenProcess(0x1000, False, pid)  # QUERY_LIMITED_INFORMATION
+    if not handle:
+        return ""
+    try:
+        size = wintypes.DWORD(1024)
+        buffer = ctypes.create_unicode_buffer(size.value)
+        if kernel32.QueryFullProcessImageNameW(handle, 0, buffer, ctypes.byref(size)):
+            return buffer.value
+        return ""
+    finally:
+        # Always close: the old code leaked one handle per window per refresh.
+        kernel32.CloseHandle(handle)
+
+
 def _win_list_windows() -> List[dict]:
     import ctypes
     from ctypes import wintypes
 
-    user32 = ctypes.windll.user32
-    kernel32 = ctypes.windll.kernel32
-    WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    user32, kernel32 = _win32_cached()
+    callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 
-    user32.IsWindowVisible.argtypes = [wintypes.HWND]
-    user32.IsWindowVisible.restype = wintypes.BOOL
-    user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
-    user32.GetWindowTextLengthW.restype = ctypes.c_int
-    user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
-    user32.GetWindowTextW.restype = ctypes.c_int
-    user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
-    user32.GetWindowThreadProcessId.restype = wintypes.DWORD
-
-    ignored = {"Program Manager", "Windows Input Experience", "Task View",
-               "Default IME", "MSCTFIME UI", "Circle", "Search"}
     windows: List[dict] = []
 
-    @WNDENUMPROC
+    @callback_type
     def _callback(hwnd, _lparam):
         if not user32.IsWindowVisible(hwnd):
             return True
@@ -421,17 +513,19 @@ def _win_list_windows() -> List[dict]:
         buffer = ctypes.create_unicode_buffer(length + 1)
         user32.GetWindowTextW(hwnd, buffer, length + 1)
         title = buffer.value.strip()
-        if not title or title in ignored:
+        if not title or title in _WIN_SKIP_TITLES:
             return True
-        ex_style = user32.GetWindowLongW(hwnd, -20)
-        if ex_style & 0x00000080:  # WS_EX_TOOLWINDOW
+        if user32.GetWindowLongW(hwnd, -20) & 0x00000080:  # WS_EX_TOOLWINDOW
             return True
+
         pid = wintypes.DWORD()
         user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        path = _win_process_path(kernel32, pid.value)
         windows.append({
-            "handle": hwnd,
+            "handle": int(hwnd),
             "title": title,
-            "app": _win_process_name(kernel32, pid.value),
+            "app": os.path.splitext(os.path.basename(path))[0] if path else "",
+            "proc_path": path,
             "pid": pid.value,
         })
         return True
@@ -443,29 +537,34 @@ def _win_list_windows() -> List[dict]:
     return windows
 
 
-def _win_process_name(kernel32, pid: int) -> str:
+def focus_own_window(handle):
+    """Bring one of our own windows to the front.
+
+    Windows refuses SetForegroundWindow to a process that did not recently
+    receive input, which is exactly our case: the hotkey arrives through a
+    global hook. A synthetic Alt tap satisfies the check.
+    """
+    if not IS_WINDOWS:
+        return
+    import ctypes
+    from ctypes import wintypes
+
+    user32, _kernel32 = _win32_cached()
     try:
-        handle = kernel32.OpenProcess(0x1000, False, pid)  # QUERY_LIMITED_INFORMATION
-        if not handle:
-            return ""
-        import ctypes
-        size = ctypes.c_ulong(1024)
-        buffer = ctypes.create_unicode_buffer(1024)
-        if kernel32.QueryFullProcessImageNameW(handle, 0, buffer, ctypes.byref(size)):
-            name = os.path.splitext(os.path.basename(buffer.value))[0]
-            kernel32.CloseHandle(handle)
-            return name
-        kernel32.CloseHandle(handle)
-    except Exception:
-        pass
-    return ""
+        user32.AllowSetForegroundWindow(0xFFFFFFFF)  # ASFW_ANY
+        user32.keybd_event(0x12, 0, 0, None)         # VK_MENU down
+        user32.keybd_event(0x12, 0, 2, None)         # VK_MENU up
+        user32.SetForegroundWindow(wintypes.HWND(int(handle)))
+        user32.BringWindowToTop(wintypes.HWND(int(handle)))
+    except Exception as exc:
+        print(f"[circle] cannot raise our window: {exc}")
 
 
 def _win_activate(hwnd):
-    import ctypes
-    user32 = ctypes.windll.user32
+    user32, _kernel32 = _win32_cached()
     try:
-        user32.ShowWindow(hwnd, 9)          # SW_RESTORE
+        if user32.IsIconic(hwnd):
+            user32.ShowWindow(hwnd, 9)      # SW_RESTORE
         user32.SetForegroundWindow(hwnd)
         user32.BringWindowToTop(hwnd)
     except Exception as exc:
@@ -574,6 +673,79 @@ def _mac_set_autostart(enable: bool):
         run(["launchctl", "load", "-w", path])
     except Exception as exc:
         print(f"[circle] could not write the login item: {exc}")
+
+
+# ---------------------------------------------------------------- shortcuts ---
+
+_MAC_SYMBOLS = {
+    "ctrl": "\u2303", "control": "\u2303",
+    "alt": "\u2325", "option": "\u2325", "opt": "\u2325",
+    "shift": "\u21e7",
+    "cmd": "\u2318", "command": "\u2318", "win": "\u2318", "super": "\u2318",
+}
+_WIN_NAMES = {
+    "ctrl": "Ctrl", "control": "Ctrl",
+    "alt": "Alt", "option": "Alt", "opt": "Alt",
+    "shift": "Shift",
+    "cmd": "Win", "command": "Win", "win": "Win", "super": "Win",
+}
+_KEY_NAMES = {
+    "space": "Space", "enter": "Enter", "return": "Return", "tab": "Tab",
+    "esc": "Esc", "escape": "Esc", "backspace": "Backspace", "delete": "Del",
+    "up": "\u2191", "down": "\u2193", "left": "\u2190", "right": "\u2192",
+}
+
+
+def format_shortcut(spec: str) -> str:
+    """'<ctrl>+<alt>+<space>' -> '\u2303\u2325Space' on macOS, 'Ctrl + Alt + Space' on Windows."""
+    text = (spec or "").strip()
+    if not text:
+        return ""
+    if text.lower() in ("middle_click", "middle click", "button.middle"):
+        return "Middle click"
+
+    tokens = [t.strip() for t in text.replace("<", "+").replace(">", "+").split("+")]
+    tokens = [t for t in tokens if t]
+    modifiers = _MAC_SYMBOLS if IS_MACOS else _WIN_NAMES
+
+    parts = []
+    for token in tokens:
+        key = token.lower()
+        if key in modifiers:
+            parts.append(modifiers[key])
+        elif key in _KEY_NAMES:
+            parts.append(_KEY_NAMES[key])
+        elif len(token) == 1:
+            parts.append(token.upper())
+        else:
+            parts.append(token.title())
+
+    if IS_MACOS:
+        # macOS convention: modifiers packed together, no separators.
+        return "".join(parts)
+    return " + ".join(parts)
+
+
+def shortcut_presets() -> List[tuple]:
+    """(label, spec) pairs that make sense on this platform."""
+    if IS_MACOS:
+        return [
+            ("\u2325Space", "<alt>+<space>"),
+            ("\u2303\u2325Space", "<ctrl>+<alt>+<space>"),
+            ("\u2303Space", "<ctrl>+<space>"),
+        ]
+    return [
+        ("Alt + Space", "<alt>+<space>"),
+        ("Ctrl + Space", "<ctrl>+<space>"),
+        ("Ctrl + K", "<ctrl>+k"),
+    ]
+
+
+def footer_hints() -> str:
+    """The key legend under the search panel, written the platform's way."""
+    if IS_MACOS:
+        return "\u2191\u2193  navigate     \u21b5  open     \u21e7\u21b5  reveal     esc  close"
+    return "\u2191\u2193  navigate     \u21b5  open     shift+\u21b5  reveal     esc  close"
 
 
 # ------------------------------------------------------------------ helpers ---
