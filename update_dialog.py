@@ -235,6 +235,15 @@ class UpdateDialog(QWidget):
             except Exception:
                 pass
 
+    def stop_threads(self, timeout_ms: int = 1200):
+        """Stop an in-flight download so the app can exit cleanly."""
+        thread = self._download_thread
+        if thread is not None and thread.isRunning():
+            thread.requestInterruption()
+            if not thread.wait(timeout_ms):
+                thread.terminate()
+                thread.wait(300)
+
     def closeEvent(self, event):
         self.dismissed.emit()
         super().closeEvent(event)

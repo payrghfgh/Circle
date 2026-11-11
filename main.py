@@ -312,10 +312,32 @@ class CircleApp(QObject):
             self.tray_icon.showMessage("Update check failed", message,
                                        QSystemTrayIcon.Warning, 6000)
 
-    def exit_app(self):
+    def _stop_background_work(self):
+        """Wind down every worker before the interpreter goes away.
+
+        A QThread still running at shutdown aborts the process on Windows and
+        macOS — it only warns on Linux — so quitting mid-index or mid-download
+        has to stop them first.
+        """
         search = self._windows.get("search")
         if search is not None:
             search.stop_threads()
+
+        dialog = self._update_dialog
+        if dialog is not None:
+            dialog.stop_threads()
+
+        thread = self._update_thread
+        if thread is not None and thread.isRunning():
+            thread.requestInterruption()
+            # The check is inside a blocking HTTP call, so waiting rarely helps;
+            # terminating at exit is the lesser evil.
+            if not thread.wait(1200):
+                thread.terminate()
+                thread.wait(300)
+
+    def exit_app(self):
+        self._stop_background_work()
         self.hotkey_manager.stop()
         self.tray_icon.hide()
         QApplication.quit()
