@@ -4,7 +4,7 @@ Build scripts read this file so the installer, the bundle and the update
 check can never disagree about what version they are.
 """
 
-__version__ = "1.2.1"
+__version__ = "1.2.2"
 
 GITHUB_OWNER = "payrghfgh"
 GITHUB_REPO = "Circle"

@@ -78,26 +78,41 @@ def main():
         {"name": "Spotify", "path": spotify, "launch": spotify,
          "icon_source": "", "type": "bundle"},
     ]
+    # Keep the test hermetic: a CI runner has its own windows, files and
+    # actions, and any of them may outrank the fixture.
+    win.engine.actions = []
+    win.engine.files.entries = []
+    win.engine.windows = lambda: []
+
     win.show()
     app.processEvents()
 
-    def select(query):
+    def select(query, title):
+        """Search, then select the row with this title — never assume a position."""
         win.show()
         win.input.setText(query)
         win.refresh(query)
         app.processEvents()
-        return win.list.item(win.list.currentRow()).data(ROLE_RESULT)
+        for row in range(win.list.count()):
+            item = win.list.item(row)
+            if item.data(ROLE_HEADER):
+                continue
+            result = item.data(ROLE_RESULT)
+            if result is not None and result.title == title:
+                win.list.setCurrentRow(row)
+                app.processEvents()
+                return result
+        raise AssertionError(f"no result titled {title!r} for {query!r}")
 
     # 1. Enter on an app opens it, and the panel gets out of the way.
-    result = select("spot")
-    assert result is not None and result.title == "Spotify", "app not found"
+    select("spot", "Spotify")
     win.run_current()
     assert not win.isVisible(), "panel should hide on activation"
     spin()
     assert opened == [spotify], f"app was not launched, opened={opened}"
 
     # 2. Shift+Enter reveals instead of opening.
-    select("spot")
+    select("spot", "Spotify")
     win.run_current(alternate=True)
     spin()
     assert revealed == [spotify], f"reveal not called, revealed={revealed}"
@@ -106,7 +121,7 @@ def main():
     # 3. A launch the OS refuses is reported, with the app's name.
     platform.open_path = lambda path: False
     win.action_failed.connect(lambda message: failures.append(message))
-    select("spot")
+    select("spot", "Spotify")
     win.run_current()
     spin()
     assert len(failures) == 1, f"failure not reported: {failures}"
@@ -120,7 +135,7 @@ def main():
          "icon_source": "", "type": "bundle"},
     ]
     failures.clear()
-    select("gone")
+    select("gone", "Gone")
     win.run_current()
     spin()
     assert failures and "no longer at" in failures[0], f"expected a stale-target message: {failures}"
