@@ -52,8 +52,14 @@ def create_tray_icon():
 class CircleApp(QObject):
     trigger_overlay_signal = Signal()
 
-    def __init__(self):
+    def __init__(self, headless: bool = False):
+        """`headless` skips the tray icon and its notifications.
+
+        A system tray needs a real desktop session; creating and showing one on
+        a CI runner is what segfaulted during teardown.
+        """
         super().__init__()
+        self.headless = headless
         self.config_data = load_config()
 
         if self.config_data.get("autostart", True):
@@ -86,8 +92,9 @@ class CircleApp(QObject):
         if platform.IS_MACOS:
             message += ("  If the shortcut does nothing, allow Circle under "
                         "System Settings → Privacy & Security → Accessibility.")
-        self.tray_icon.showMessage("Circle is running", message,
-                                   QSystemTrayIcon.Information, 6000)
+        if not self.headless:
+            self.tray_icon.showMessage("Circle is running", message,
+                                       QSystemTrayIcon.Information, 6000)
 
     # ----------------------------------------------------------------- tray --
 
@@ -138,7 +145,8 @@ class CircleApp(QObject):
 
         self.tray_icon.setContextMenu(menu)
         self.tray_icon.activated.connect(self.on_tray_icon_activated)
-        self.tray_icon.show()
+        if not self.headless:
+            self.tray_icon.show()
 
     # ------------------------------------------------------- lazy windows --
 
@@ -245,8 +253,9 @@ class CircleApp(QObject):
     def _on_action_failed(self, message: str):
         """A windowed build has no console, so failures go to a notification."""
         print(f"[circle] action failed: {message}")
-        self.tray_icon.showMessage("Circle", message,
-                                   QSystemTrayIcon.Warning, 6000)
+        if not self.headless:
+            self.tray_icon.showMessage("Circle", message,
+                                       QSystemTrayIcon.Warning, 6000)
 
     def on_config_saved(self, new_config):
         self.config_data = new_config
@@ -345,7 +354,8 @@ class CircleApp(QObject):
     def exit_app(self):
         self._stop_background_work()
         self.hotkey_manager.stop()
-        self.tray_icon.hide()
+        if not self.headless:
+            self.tray_icon.hide()
         QApplication.quit()
 
 

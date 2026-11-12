@@ -52,7 +52,9 @@ def main():
 
     import main as app_main
 
-    circle = app_main.CircleApp()
+    # No tray icon: CI runners have no desktop session, and showing one
+    # there crashes during teardown.
+    circle = app_main.CircleApp(headless=True)
 
     # 1. Nothing exists yet.
     assert circle._windows == {}, f"windows built at startup: {list(circle._windows)}"
