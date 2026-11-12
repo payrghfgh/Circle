@@ -12,7 +12,7 @@ Intel)** — four installers, each built natively on the architecture it targets
 ## Install
 
 **Windows** — download `Circle-1.5.0-setup.exe` (x64) or
-`Circle-1.5.0-setup-arm64.exe` (Windows on ARM) from [Releases](../../releases) and
+`Circle-1.5.0-arm64-setup.exe` (Windows on ARM) from [Releases](../../releases) and
 run it. Per-user install, no admin prompt, into `%LOCALAPPDATA%\Programs\Circle`.
 
 The ARM64 installer is a native build, not the x64 one under emulation: Circle,

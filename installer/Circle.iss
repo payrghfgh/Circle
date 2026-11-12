@@ -1,6 +1,6 @@
 ; Circle — Inno Setup 6 installer script
 ; Build with:  iscc /DAppVersion=<version> /DAppArch=x64compatible installer\Circle.iss
-; Produces:    installer\output\Circle-<version>-setup.exe
+; Produces:    installer\output\Circle-<version>[-arm64]-setup.exe
 ;
 ; Per-user install by default (no admin prompt). The architecture is a build
 ; parameter so the same script produces the x64 and the native ARM64 installer:
