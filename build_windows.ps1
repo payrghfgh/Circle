@@ -3,12 +3,19 @@
 #   powershell -ExecutionPolicy Bypass -File .\build_windows.ps1
 #
 # Needs: Python 3.10+ (64-bit) and Inno Setup 6 (https://jrsoftware.org/isdl.php).
-# Output: installer\output\Circle-<version>-setup.exe
+# Output: installer\output\Circle-<version>[-arm64]-setup.exe
 
 param(
     [string]$Python = "python",
-    [string]$IsccPath = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+    [string]$IsccPath = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+    # x64 or arm64. The build must run on a machine of the same architecture:
+    # PyInstaller freezes for the interpreter it runs under.
+    [ValidateSet("x64", "arm64")]
+    [string]$Arch = "x64"
 )
+
+$InnoArch = if ($Arch -eq "arm64") { "arm64" } else { "x64compatible" }
+$ArchSuffix = if ($Arch -eq "arm64") { "-arm64" } else { "" }
 
 $ErrorActionPreference = "Stop"
 Set-Location -Path $PSScriptRoot
@@ -41,7 +48,7 @@ if (-not (Test-Path $IsccPath)) {
 if (-not $IsccPath -or -not (Test-Path $IsccPath)) {
     throw "ISCC.exe not found. Install Inno Setup 6 from https://jrsoftware.org/isdl.php"
 }
-& $IsccPath "/DAppVersion=$Version" "installer\Circle.iss"
+& $IsccPath "/DAppVersion=$Version" "/DAppArch=$InnoArch" "/DArchSuffix=$ArchSuffix" "installer\Circle.iss"
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed" }
 
 Write-Host "`nDone." -ForegroundColor Green

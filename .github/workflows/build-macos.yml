@@ -45,7 +45,7 @@ jobs:
         run: |
           set -uo pipefail
           status=0
-          for test in test_shortcuts test_activation test_startup; do
+          for test in test_shortcuts test_updater_assets test_activation test_startup; do
             python "tests/${test}.py"
             code=$?
             echo "::notice::${test} exited ${code}"

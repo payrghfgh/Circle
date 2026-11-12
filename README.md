@@ -4,17 +4,24 @@ A launcher in two halves: a **radial wheel** around your cursor for the six thin
 you do constantly, and a **Search panel** — press one key, type, and it finds apps,
 open windows, files, system settings, actions, sums and the web.
 
-Runs on **Windows 10/11 (64-bit)** and **macOS 11+ (Apple Silicon and Intel)**.
+Runs on **Windows 10/11 (x64 and ARM64)** and **macOS 11+ (Apple Silicon and
+Intel)** — four installers, each built natively on the architecture it targets.
 
 ---
 
 ## Install
 
-**Windows** — download `Circle-1.4.1-setup.exe` from [Releases](../../releases) and
+**Windows** — download `Circle-1.5.0-setup.exe` (x64) or
+`Circle-1.5.0-setup-arm64.exe` (Windows on ARM) from [Releases](../../releases) and
 run it. Per-user install, no admin prompt, into `%LOCALAPPDATA%\Programs\Circle`.
 
-**macOS** — download `Circle-1.4.1-arm64.dmg` (Apple Silicon) or
-`Circle-1.4.1-x64.dmg` (Intel), open it, and drag Circle onto the Applications
+The ARM64 installer is a native build, not the x64 one under emulation: Circle,
+Qt and the Python runtime all run as ARM64 code on a Snapdragon-class laptop.
+Pick the wrong one and Windows will refuse it, which is the point — the installer
+checks the architecture rather than limping along at half speed.
+
+**macOS** — download `Circle-1.5.0-arm64.dmg` (Apple Silicon) or
+`Circle-1.5.0-x64.dmg` (Intel), open it, and drag Circle onto the Applications
 folder in the window that appears — the disk image is laid out for exactly that.
 
 The macOS build is ad-hoc signed, not notarised, so the first launch needs one of:
@@ -150,7 +157,8 @@ git tag v1.1.1
 git push origin v1.1.1
 ```
 
-`build-installer.yml` produces the Windows `setup.exe` on `windows-latest`;
+`build-installer.yml` produces the x64 and ARM64 Windows installers on
+`windows-latest` and `windows-11-arm`;
 `build-macos.yml` produces the arm64 and x64 `.dmg` files on `macos-latest` and
 `macos-15-intel`. All three attach to the release automatically, and their names
 carry the version from `version.py`.

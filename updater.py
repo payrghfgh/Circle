@@ -74,26 +74,37 @@ def machine_arch() -> str:
     return "x64"
 
 
+def _pick_by_arch(candidates: List[tuple], wanted: str) -> Optional[dict]:
+    """Choose the asset whose name matches this machine's architecture.
+
+    ARM builds carry 'arm64' in the name; everything else is the x64 build. A
+    release with a single asset always wins, whatever it is called.
+    """
+    if not candidates:
+        return None
+    if len(candidates) == 1:
+        return candidates[0][1]
+
+    want_arm = wanted == "arm64"
+    for name, asset in candidates:
+        if ("arm64" in name.lower()) == want_arm:
+            return asset
+    # No exact match (older naming): fall back to the first, but never hand an
+    # ARM machine the x64 build when an ARM one exists, or vice versa.
+    return candidates[0][1]
+
+
 def asset_for_platform(assets: List[dict]) -> Optional[dict]:
     """Pick the installer that belongs on this machine."""
     names = [(a.get("name") or "", a) for a in assets]
 
     if platform.IS_WINDOWS:
-        for name, asset in names:
-            if name.lower().endswith(".exe"):
-                return asset
-        return None
+        exes = [(n, a) for n, a in names if n.lower().endswith(".exe")]
+        return _pick_by_arch(exes, machine_arch())
 
     if platform.IS_MACOS:
         dmgs = [(n, a) for n, a in names if n.lower().endswith(".dmg")]
-        if not dmgs:
-            return None
-        wanted = machine_arch()
-        for name, asset in dmgs:
-            if wanted in name.lower():
-                return asset
-        # A single-dmg release, or a naming scheme we do not recognise.
-        return dmgs[0][1]
+        return _pick_by_arch(dmgs, machine_arch())
 
     return None
 

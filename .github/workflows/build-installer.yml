@@ -11,8 +11,24 @@ permissions:
 
 jobs:
   build:
-    name: Build Circle for Windows
-    runs-on: windows-latest
+    name: Build Circle for Windows (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Native x64 build on a normal Windows runner.
+          - runner: windows-latest
+            arch: x64
+            py_arch: x64
+            inno_arch: x64compatible
+            suffix: ""
+          # Native ARM64 build for Snapdragon-class Windows laptops.
+          - runner: windows-11-arm
+            arch: arm64
+            py_arch: arm64
+            inno_arch: arm64
+            suffix: "-arm64"
     steps:
       - uses: actions/checkout@v4
 
@@ -20,7 +36,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          architecture: ${{ matrix.py_arch }}
           cache: pip
+
+      - name: Show the interpreter
+        run: python -c "import platform,sys; print(platform.machine(), sys.version)"
 
       - name: Install dependencies
         run: |
@@ -37,7 +57,7 @@ jobs:
         run: |
           set -uo pipefail
           status=0
-          for test in test_shortcuts test_activation test_startup; do
+          for test in test_shortcuts test_updater_assets test_activation test_startup; do
             python "tests/${test}.py"
             code=$?
             echo "::notice::${test} exited ${code}"
@@ -54,29 +74,38 @@ jobs:
       - name: Freeze with PyInstaller
         run: python -m PyInstaller Circle.spec --noconfirm --clean
 
-      - name: Check the app was produced
+      - name: Check the app was produced for this architecture
+        shell: pwsh
         run: |
           if (-not (Test-Path "dist\Circle\Circle.exe")) { throw "dist\Circle\Circle.exe missing" }
-        shell: pwsh
+          $exe = "dist\Circle\Circle.exe"
+          $bytes = [System.IO.File]::ReadAllBytes($exe)
+          $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
+          $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
+          # 0x8664 = x64, 0xAA64 = ARM64
+          $found = switch ($machine) { 0x8664 { "x64" } 0xAA64 { "arm64" } default { "unknown($machine)" } }
+          Write-Host "Circle.exe machine type: $found"
+          if ($found -ne "${{ matrix.arch }}") { throw "expected ${{ matrix.arch }}, got $found" }
 
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
 
       - name: Build the installer
+        shell: pwsh
         run: |
           $Version = (python -c "import version; print(version.__version__)").Trim()
-          Write-Host "Building installer for $Version"
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=$Version" "installer\Circle.iss"
+          Write-Host "Building installer for $Version (${{ matrix.arch }})"
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc "/DAppVersion=$Version" "/DAppArch=${{ matrix.inno_arch }}" "/DArchSuffix=${{ matrix.suffix }}" "installer\Circle.iss"
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
-          $expected = "installer\output\Circle-$Version-setup.exe"
+          $expected = "installer\output\Circle-$Version${{ matrix.suffix }}-setup.exe"
           if (-not (Test-Path $expected)) { throw "expected $expected, got: $(Get-ChildItem installer\output)" }
           Write-Host "Built $expected"
-        shell: pwsh
 
       - name: Upload the installer
         uses: actions/upload-artifact@v4
         with:
-          name: Circle-windows-installer
+          name: Circle-windows-${{ matrix.arch }}
           path: installer/output/Circle-*-setup.exe
           if-no-files-found: error
 
@@ -85,4 +114,3 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: installer/output/Circle-*-setup.exe
-          generate_release_notes: true

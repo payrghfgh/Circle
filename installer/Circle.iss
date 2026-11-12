@@ -1,14 +1,24 @@
 ; Circle — Inno Setup 6 installer script
-; Build with:  iscc /DAppVersion=<version> installer\Circle.iss
+; Build with:  iscc /DAppVersion=<version> /DAppArch=x64compatible installer\Circle.iss
 ; Produces:    installer\output\Circle-<version>-setup.exe
 ;
-; Per-user install by default (no admin prompt), Windows 10 and 11 x64.
+; Per-user install by default (no admin prompt). The architecture is a build
+; parameter so the same script produces the x64 and the native ARM64 installer:
+;   /DAppArch=x64compatible            -> Windows 10/11 x64 (and ARM64 emulation)
+;   /DAppArch=arm64 /DArchSuffix=-arm64 -> Windows 11 on ARM, native
 
 #define AppName "Circle"
 ; The version comes from version.py via /DAppVersion=<version>. Refusing to
 ; guess means a build can never quietly ship the wrong number.
 #ifndef AppVersion
   #error AppVersion is not defined. Pass /DAppVersion=<version> (build_windows.ps1 does this).
+#endif
+#ifndef AppArch
+  #define AppArch "x64compatible"
+#endif
+; Empty for x64, "-arm64" for the native ARM build.
+#ifndef ArchSuffix
+  #define ArchSuffix ""
 #endif
 #define AppPublisher "Circle"
 #define AppExeName "Circle.exe"
@@ -27,15 +37,15 @@ DisableProgramGroupPage=yes
 UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\{#AppExeName}
 OutputDir=output
-OutputBaseFilename=Circle-{#AppVersion}-setup
+OutputBaseFilename=Circle-{#AppVersion}{#ArchSuffix}-setup
 SetupIconFile=..\circle.ico
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
-; Windows 10 (10.0.10240) and newer, 64-bit only.
+; Windows 10 (10.0.10240) and newer.
 MinVersion=10.0.10240
-ArchitecturesAllowed=x64compatible
-ArchitecturesInstallIn64BitMode=x64compatible
+ArchitecturesAllowed={#AppArch}
+ArchitecturesInstallIn64BitMode={#AppArch}
 ; Install per-user when the user is not an admin, per-machine when they are.
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
